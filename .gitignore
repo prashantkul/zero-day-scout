@@ -1,0 +1,7 @@
+CLAUDE.md
+
+# ignore the .env file
+.env
+**/.claude/settings.local.json
+**/__pycache__/*
+__pycache__/

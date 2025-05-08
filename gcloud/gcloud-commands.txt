@@ -1,0 +1,19 @@
+# Create RAG Corpus
+
+(scout) pskulkarni@pskulkarni-macbookpro ~/Documents/source-code/zero-day-scout/gcloud $ curl -X POST \
+     -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+     -H "Content-Type: application/json; charset=utf-8" \
+     -d @request.json \
+     "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/privacy-ml-lab2/locations/us-central1/ragCorpora"
+
+# Output
+{
+  "name": "projects/174522850388/locations/us-central1/operations/8724083360005095424",
+  "metadata": {
+    "@type": "type.googleapis.com/google.cloud.aiplatform.v1beta1.CreateRagCorpusOperationMetadata",
+    "genericMetadata": {
+      "createTime": "2025-05-08T15:49:14.026557Z",
+      "updateTime": "2025-05-08T15:49:14.026557Z"
+    }
+  }
+}
