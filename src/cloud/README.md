@@ -1,20 +1,22 @@
 # Scheduled RAG Ingestion on Google Cloud Run
 
-This guide explains how to set up a scheduled RAG document ingestion service on Google Cloud Run, triggered by Cloud Scheduler.
+This guide explains how to set up a scheduled RAG document ingestion service on Google Cloud Run, triggered by Cloud Scheduler, using Cloud Build for automated deployment.
 
 ## Architecture
 
 The solution consists of:
 
-1. **Cloud Run Service**: A containerized service that ingests documents from GCS into the RAG corpus
-2. **Cloud Scheduler**: A cron job that triggers the ingestion service on a schedule
-3. **Service Account**: For authentication and authorization
-4. **Container Registry**: To store the container image
+1. **Cloud Build**: Automates the deployment process
+2. **Cloud Run Service**: A containerized service that ingests documents from GCS into the RAG corpus
+3. **Cloud Scheduler**: A cron job that triggers the ingestion service on a schedule
+4. **Service Account**: For authentication and authorization
+5. **Container Registry**: To store the container image
 
 ## Prerequisites
 
 - Google Cloud account and project
 - Required permissions:
+  - Cloud Build Editor
   - Cloud Run Admin
   - Cloud Scheduler Admin
   - Service Account User
@@ -22,66 +24,108 @@ The solution consists of:
   - Vertex AI User
 - gcloud CLI installed and configured
 
-## Setup Steps
+## Deployment Process (Two-Step)
 
-### 1. Create a Service Account
+We've divided the deployment into two separate steps to avoid any issues with Cloud Build variable substitutions:
+
+1. **Deploy the RAG ingestion service to Cloud Run**
+2. **Create a Cloud Scheduler job to trigger regular ingestion**
+
+This two-step approach is specifically designed to avoid Cloud Build variable substitution errors that can occur when trying to use the SERVICE_URL variable in the Cloud Build configuration.
+
+### Step 1: Deploy the Service
+
+Use the setup script which:
+- Enables all required APIs
+- Sets up necessary service account permissions
+- Triggers the Cloud Build deployment for the Cloud Run service
 
 ```bash
-# Create service account
-gcloud iam service-accounts create rag-ingestion-service \
-  --description="Service account for RAG ingestion service" \
-  --display-name="RAG Ingestion Service"
+# Make scripts executable (if needed)
+chmod +x src/cloud/*.sh
 
-# Grant required permissions
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:rag-ingestion-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/storage.admin"
+# Run with default settings (us-central1 region)
+./src/cloud/setup_and_deploy.sh
 
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:rag-ingestion-service@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/aiplatform.user"
-
-# Optional: Grant more granular permissions based on your needs
+# Or customize the region
+./src/cloud/setup_and_deploy.sh --region=us-west1
 ```
 
-### 2. Build and Deploy the Service
+Available options:
+- `--region`: GCP region (default: us-central1)
 
-#### Option A: Manual Deployment
+### Step 2: Set Up Cloud Scheduler
+
+Once the service is deployed, set up a Cloud Scheduler job to trigger it regularly:
 
 ```bash
-# Build the container image
-docker build -t gcr.io/YOUR_PROJECT_ID/rag-ingestion-service:v1 .
+# Get the service URL
+SERVICE_URL=$(gcloud run services describe rag-ingestion-service --region=us-central1 --format='value(status.url)')
 
-# Push to Container Registry
-docker push gcr.io/YOUR_PROJECT_ID/rag-ingestion-service:v1
+# Create the scheduler job with default settings
+./src/cloud/create_scheduler.sh --url=$SERVICE_URL
 
-# Deploy to Cloud Run
-gcloud run deploy rag-ingestion-service \
-  --image=gcr.io/YOUR_PROJECT_ID/rag-ingestion-service:v1 \
-  --region=us-central1 \
-  --platform=managed \
-  --memory=2Gi \
-  --cpu=1 \
-  --timeout=540s \
-  --max-instances=10 \
-  --min-instances=0 \
-  --service-account=rag-ingestion-service@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --set-env-vars=PROJECT_ID=YOUR_PROJECT_ID \
-  --no-allow-unauthenticated
+# Or customize the scheduler
+./src/cloud/create_scheduler.sh --url=$SERVICE_URL --schedule="*/10 8-17 * * *" --prefix="research_papers/"
 ```
 
-#### Option B: Using Cloud Build
+Available options:
+- `--url`: Service URL (required)
+- `--region`: GCP region (default: us-central1)
+- `--job-name`: Scheduler job name (default: rag-daily-ingestion)
+- `--schedule`: Cron schedule (default: */10 8-17 * * *  Minute: Every 10 minutes and Hour: From 8 to 17 PDT)
+- `--prefix`: GCS path prefix (default: none, which ingests all files)
+- `--time-zone`: Timezone (default: America/Los_Angeles)
+
+## Manual Setup (Alternative)
+
+If you prefer to run the steps manually:
+
+1. Enable required APIs:
 
 ```bash
-# Update the cloudbuild.yaml file with your project-specific values
-# Then run:
-gcloud builds submit --config src/cloud/cloudbuild.yaml
+gcloud services enable \
+  cloudbuild.googleapis.com \
+  run.googleapis.com \
+  cloudscheduler.googleapis.com \
+  artifactregistry.googleapis.com \
+  iam.googleapis.com \
+  aiplatform.googleapis.com
 ```
 
-### 3. Set Up Cloud Scheduler
+2. Grant Cloud Build service account the necessary permissions:
 
 ```bash
-# Get the Cloud Run service URL
+# Get the Cloud Build service account
+PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+CLOUD_BUILD_SA="$PROJECT_NUMBER@cloudbuild.gserviceaccount.com"
+
+# Grant necessary permissions
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUD_BUILD_SA" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUD_BUILD_SA" \
+  --role="roles/iam.serviceAccountUser"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:$CLOUD_BUILD_SA" \
+  --role="roles/cloudscheduler.admin"
+```
+
+3. Deploy with Cloud Build:
+
+```bash
+# From project root directory
+gcloud builds submit --config=src/cloud/cloudbuild-deploy.yaml --substitutions=_REGION=us-central1 .
+```
+
+4. Create a Cloud Scheduler job:
+
+```bash
+# Get the service URL
 SERVICE_URL=$(gcloud run services describe rag-ingestion-service --region=us-central1 --format='value(status.url)')
 
 # Create a scheduler job
@@ -89,13 +133,22 @@ gcloud scheduler jobs create http rag-daily-ingestion \
   --schedule="0 2 * * *" \
   --uri="${SERVICE_URL}/ingest" \
   --http-method=POST \
-  --oidc-service-account-email=rag-ingestion-service@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --message-body='{"prefix": "documents/", "wait_for_completion": false}' \
+  --oidc-service-account-email=rag-ingestion-service@$PROJECT_ID.iam.gserviceaccount.com \
+  --message-body='{"wait_for_completion": false}' \
   --location=us-central1 \
   --time-zone=America/Los_Angeles
 ```
 
-## Configuration Options
+## Cloud Build Configuration
+
+The Cloud Build deployment (`cloudbuild-deploy.yaml`) includes:
+
+- Building and pushing the Docker container image
+- Creating the service account if it doesn't exist
+- Deploying the service to Cloud Run
+- Displaying the service URL for subsequent scheduler setup
+
+## Ingestion API
 
 The ingestion service accepts the following parameters:
 
@@ -130,7 +183,7 @@ TOKEN=$(gcloud auth print-identity-token)
 curl -X POST ${SERVICE_URL}/ingest \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d '{"prefix": "documents/test/", "wait_for_completion": true}'
+  -d '{"wait_for_completion": true}'
 ```
 
 ## Monitoring and Logs
@@ -147,7 +200,29 @@ curl -X POST ${SERVICE_URL}/ingest \
 
 ## Troubleshooting
 
+### General Issues
+
 - **Authentication Issues**: Check the service account permissions
 - **Timeouts**: Adjust the Cloud Run timeout setting if ingestion takes longer
 - **Memory Errors**: Increase the memory allocation for the Cloud Run service
 - **Missing Files**: Verify the GCS bucket and prefix are correct
+
+### Cloud Build Substitution Errors
+
+If you encounter an error like:
+```
+ERROR: (gcloud.builds.submit) INVALID_ARGUMENT: generic::invalid_argument: invalid value for 'build.substitutions': key in the template "SERVICE_URL" is not a valid built-in substitution
+```
+
+This happens because Cloud Build only supports specific predefined substitution variables, plus custom variables that start with underscore (like `_REGION`). 
+
+Our solution:
+1. We've simplified the Cloud Build configuration to avoid using `SERVICE_URL` as a substitution variable
+2. We've split the deployment into two separate steps:
+   - First deploy the service using Cloud Build
+   - Then retrieve the service URL and set up the scheduler manually
+
+If you still encounter substitution issues:
+- Ensure you're using the latest version of the deployment scripts
+- Double-check that the Cloud Build configuration doesn't use any undefined substitution variables
+- Only use built-in variables like `$PROJECT_ID`, `$BUILD_ID`, etc., or custom variables starting with underscore (e.g., `${_REGION}`)

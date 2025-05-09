@@ -17,4 +17,4 @@ DEFAULT_DISTANCE_THRESHOLD = 0.6
 DEFAULT_TEMPERATURE = 0.2
 
 # GCS settings
-DEFAULT_GCS_BUCKET = None  # Set during runtime
+DEFAULT_GCS_BUCKET = "rag-research-papers"  # Set during runtime

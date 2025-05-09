@@ -1,0 +1,26 @@
+# Cloud Build triggers configuration - can be imported using gcloud
+
+# Trigger for manual deployment from main branch
+- name: rag-ingestion-deploy
+  description: "Deploy RAG ingestion service to Cloud Run"
+  github:
+    owner: ${GITHUB_OWNER}  # Replace with your GitHub username or organization
+    name: ${GITHUB_REPO}    # Replace with your repository name
+    push:
+      branch: main
+  includedFiles:
+    - 'src/cloud/**'
+    - 'src/rag/**'
+    - 'config/**'
+    - 'Dockerfile'
+    - 'requirements.txt'
+  filename: src/cloud/cloudbuild.yaml
+  substitutions:
+    _REGION: us-central1
+    _SCHEDULER_JOB_NAME: rag-daily-ingestion
+    _SCHEDULE: "0 2 * * *"  # Run at 2:00 AM every day
+    _GCS_PREFIX: "documents/"
+    _TIME_ZONE: "America/Los_Angeles"
+  tags:
+    - rag-ingestion
+    - cloud-run
