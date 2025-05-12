@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Union
 from google.cloud import aiplatform
 from vertexai import rag
 from vertexai.generative_models import GenerativeModel
+from vertexai.rag import RagResource, RetrievalConfig, RetrievalTool, Filter
 
 from config.config_manager import get_config
 
@@ -347,17 +348,22 @@ class VertexRagPipeline:
         query: str,
         model_name: Optional[str] = None,
         temperature: Optional[float] = None,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
+        vector_distance_threshold: Optional[float] = None
     ) -> str:
         """
         Generate a response using RAG Engine's direct integration with LLMs.
-        
+
+        Uses Vertex AI's RAG integration where the retrieval happens within
+        the model call, rather than as separate retrieve-then-generate steps.
+
         Args:
             query: The user query
             model_name: Name of the generative model (defaults to config value)
             temperature: Temperature parameter (defaults to config value)
             top_k: Number of top results to return (defaults to config value)
-            
+            vector_distance_threshold: Optional similarity threshold (defaults to config value)
+
         Returns:
             Generated answer
         """
@@ -366,74 +372,49 @@ class VertexRagPipeline:
         model_name = model_name or config.get("generative_model")
         temperature = temperature or config.get("temperature")
         top_k = top_k or config.get("top_k")
+        vector_distance_threshold = vector_distance_threshold or config.get("distance_threshold")
 
-        # Instead of direct integration (which might not be supported),
-        # we'll use the two-step approach: retrieve then generate
+        # Ensure corpus exists
+        self.get_corpus()
+
         try:
-            # First, retrieve relevant documents
-            print(f"Retrieving context for: {query}")
-            retrievals = self.retrieve_context(
-                query=query,
-                top_k=top_k
+            print(f"Using direct RAG integration for query: {query}")
+
+            # Create retrieval tool configuration
+            rag_retrieval_tool = RetrievalTool(
+                retrieval_config=RetrievalConfig(
+                    top_k=top_k,
+                    filter=Filter(vector_distance_threshold=vector_distance_threshold)
+                ),
+                rag_resources=[
+                    RagResource(
+                        rag_corpus=self.corpus.name,
+                    )
+                ]
             )
-            
-            print(f"Found {len(retrievals)} results for direct RAG")
-            
-            # Then, generate a response using the retrieved context
+
+            # Create generative model with retrieval tool
+            model = GenerativeModel(
+                model_name,
+                tools=[rag_retrieval_tool]
+            )
+
+            # Generate response with built-in RAG integration
+            response = model.generate_content(
+                query,
+                generation_config={"temperature": temperature} if temperature is not None else None
+            )
+
+            print("Successfully generated response using direct RAG integration")
+            return response.text
+
+        except Exception as e:
+            print(f"Error in direct RAG integration: {e}")
+            print("Falling back to manual RAG implementation...")
+
+            # Fall back to the standard two-step approach
             return self.generate_answer(
                 query=query,
                 model_name=model_name,
-                temperature=temperature,
-                retrievals=retrievals
+                temperature=temperature
             )
-            
-        except Exception as e:
-            print(f"Error in direct RAG integration: {e}")
-            print("Falling back to alternative implementation...")
-            
-            try:
-                # Alternative implementation: try to use safety_settings approach
-                # Create generative model
-                model = GenerativeModel(model_name)
-                
-                # First retrieve context
-                retrievals = self.retrieve_context(
-                    query=query,
-                    top_k=top_k
-                )
-                
-                # Format context
-                context_parts = []
-                for r in retrievals:
-                    if hasattr(r, "text"):
-                        context_parts.append(r.text)
-                    elif hasattr(r, "chunk") and hasattr(r.chunk, "data"):
-                        context_parts.append(r.chunk.data)
-                    elif hasattr(r, "content"):
-                        context_parts.append(r.content)
-                
-                context = "\n\n".join(context_parts)
-                
-                # Create prompt with context
-                prompt = f"""
-                Use the following information to answer the question.
-                If you don't know the answer, just say "I don't have enough information to answer that."
-                
-                Context:
-                {context}
-                
-                Question: {query}
-                
-                Answer:
-                """
-                
-                # Generate response
-                response = model.generate_content(
-                    prompt,
-                    generation_config={"temperature": temperature} if temperature is not None else None
-                )
-                
-                return response.text
-                
-            except Exception as fallback_error:
-                return f"Unable to generate response with RAG integration: {fallback_error}"
