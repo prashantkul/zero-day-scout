@@ -169,7 +169,12 @@ class VertexRagPipeline:
                     )
                 )
             except Exception as e:
-                print(f"Error configuring reranking: {e}")
+                if "Permission 'discoveryengine.rankingConfigs.rank' denied" in str(e):
+                    print("Error: Missing Discovery Engine permissions. See README_RERANKING.md for setup instructions.")
+                elif "Discovery Engine API has not been used" in str(e) or "it is disabled" in str(e):
+                    print("Error: Discovery Engine API not enabled. See README_RERANKING.md for setup instructions.")
+                else:
+                    print(f"Error configuring reranking: {e}")
                 print("Falling back to standard retrieval")
         else:
             print("Reranking not enabled")

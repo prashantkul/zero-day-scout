@@ -4,11 +4,26 @@ This document explains how to use the reranker functionality in the RAG pipeline
 
 ## Prerequisites
 
-Before you can use the reranker, you must enable the Discovery Engine API in your Google Cloud project. Follow these steps:
+Before you can use the reranker, you must enable the Discovery Engine API and set up proper permissions in your Google Cloud project. Follow these steps:
 
-1. Go to https://console.developers.google.com/apis/api/discoveryengine.googleapis.com/overview?project=[YOUR_PROJECT_ID]
-2. Click "Enable" to activate the Discovery Engine API
-3. Wait a few minutes for the change to propagate
+1. Enable the Discovery Engine API:
+   - Go to https://console.developers.google.com/apis/api/discoveryengine.googleapis.com/overview?project=[YOUR_PROJECT_ID]
+   - Click "Enable" to activate the Discovery Engine API
+   - Wait a few minutes for the change to propagate
+
+2. Grant necessary permissions:
+   - Go to IAM & Admin in the Google Cloud Console
+   - Find your service account (or user account that's running the code)
+   - Add the following roles:
+     - Discovery Engine Admin
+     - Discovery Engine Editor
+     - Discovery Engine Ranking Admin
+     - Discovery Engine Service Agent
+
+3. Create a ranking configuration (if it doesn't exist):
+   - Go to the Discovery Engine section in Google Cloud Console
+   - Select "Ranking configurations"
+   - Create a default ranking configuration if one doesn't exist
 
 ## Configuring Reranking
 
