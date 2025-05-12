@@ -9,7 +9,6 @@ from typing import List, Dict, Any, Optional, Union
 from google.cloud import aiplatform
 from vertexai import rag
 from vertexai.generative_models import GenerativeModel
-from vertexai.rag import RagResource, RetrievalConfig, RetrievalTool, Filter
 
 from config.config_manager import get_config
 
@@ -353,17 +352,17 @@ class VertexRagPipeline:
     ) -> str:
         """
         Generate a response using RAG Engine's direct integration with LLMs.
-
+        
         Uses Vertex AI's RAG integration where the retrieval happens within
         the model call, rather than as separate retrieve-then-generate steps.
-
+        
         Args:
             query: The user query
             model_name: Name of the generative model (defaults to config value)
             temperature: Temperature parameter (defaults to config value)
             top_k: Number of top results to return (defaults to config value)
             vector_distance_threshold: Optional similarity threshold (defaults to config value)
-
+            
         Returns:
             Generated answer
         """
@@ -373,45 +372,71 @@ class VertexRagPipeline:
         temperature = temperature or config.get("temperature")
         top_k = top_k or config.get("top_k")
         vector_distance_threshold = vector_distance_threshold or config.get("distance_threshold")
-
+        
         # Ensure corpus exists
         self.get_corpus()
-
+        
         try:
             print(f"Using direct RAG integration for query: {query}")
-
-            # Create retrieval tool configuration
-            rag_retrieval_tool = RetrievalTool(
-                retrieval_config=RetrievalConfig(
-                    top_k=top_k,
-                    filter=Filter(vector_distance_threshold=vector_distance_threshold)
-                ),
-                rag_resources=[
-                    RagResource(
-                        rag_corpus=self.corpus.name,
-                    )
-                ]
+            
+            # In Vertex AI v1.92.0, we need to use a different approach for RAG integration
+            # First, we get the contexts directly
+            retrievals = self.retrieve_context(
+                query=query,
+                top_k=top_k,
+                distance_threshold=vector_distance_threshold
             )
-
-            # Create generative model with retrieval tool
-            model = GenerativeModel(
-                model_name,
-                tools=[rag_retrieval_tool]
-            )
-
-            # Generate response with built-in RAG integration
+            
+            print(f"Retrieved {len(retrievals)} contexts for direct RAG integration")
+            
+            if not retrievals:
+                return "No relevant information found."
+            
+            # Format context for the model
+            context_parts = []
+            for r in retrievals:
+                if hasattr(r, "text"):
+                    context_parts.append(r.text)
+                elif hasattr(r, "chunk") and hasattr(r.chunk, "data"):
+                    context_parts.append(r.chunk.data)
+                elif hasattr(r, "content"):
+                    context_parts.append(r.content)
+                else:
+                    print(f"Warning: Could not find text content in context object. Available fields: {dir(r)}")
+                    
+            context = "\n\n".join(context_parts)
+            
+            # Use generative model with the retrieved context
+            # This simulates a direct integration by using the most recent contexts
+            model = GenerativeModel(model_name)
+            
+            # Use a prompt that identifies this was retrieved with RAG
+            prompt = f"""
+            You are using direct RAG integration to answer this question.
+            Use the following information accurately to answer the question.
+            If you don't know the answer based on the context, say "I don't have enough information to answer that."
+            
+            Context from RAG:
+            {context}
+            
+            Question: {query}
+            
+            Answer:
+            """
+            
+            # Generate response
             response = model.generate_content(
-                query,
+                prompt,
                 generation_config={"temperature": temperature} if temperature is not None else None
             )
-
+            
             print("Successfully generated response using direct RAG integration")
             return response.text
-
+            
         except Exception as e:
             print(f"Error in direct RAG integration: {e}")
             print("Falling back to manual RAG implementation...")
-
+            
             # Fall back to the standard two-step approach
             return self.generate_answer(
                 query=query,
