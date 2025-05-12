@@ -1,0 +1,22 @@
+# Use a Python base image
+FROM python:3.11-slim-buster
+
+# Set the working directory inside the container to /app
+# This means your 'your_project_root' will be mounted at /app
+WORKDIR /app
+
+# Copy your requirements file and install dependencies first
+# This leverages Docker's layer caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of your application code
+# This will put your 'src' directory at /app/src
+COPY . .
+
+# Command to run your Streamlit app
+# Ensure Streamlit runs on port 8080 as required by Cloud Run by default
+CMD ["python", "-m", "streamlit", "run", "src/apps/streamlit_app.py", "--server.port=8080", "--server.enableCORS=true", "--server.headless=true"]
+
+# Expose the port Streamlit is listening on
+EXPOSE 8080

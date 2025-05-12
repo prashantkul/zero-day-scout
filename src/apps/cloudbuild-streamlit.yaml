@@ -1,0 +1,65 @@
+timeout: 1800s
+# Cloud Build configuration for deploying the Streamlit app to Cloud Run
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/rag-streamlit-app:$BUILD_ID', '-f', 'Dockerfile.streamlit', '.']
+  
+  # Push the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/rag-streamlit-app:$BUILD_ID']
+  
+  # Tag as latest
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['tag', 'gcr.io/$PROJECT_ID/rag-streamlit-app:$BUILD_ID', 'gcr.io/$PROJECT_ID/rag-streamlit-app:latest']
+  
+  # Push the latest tag
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/rag-streamlit-app:latest']
+  
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'rag-streamlit-app'
+      - '--image=gcr.io/$PROJECT_ID/rag-streamlit-app:$BUILD_ID'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--memory=2Gi'
+      - '--cpu=1'
+      - '--timeout=3600s'
+      - '--max-instances=5'
+      - '--min-instances=0'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--set-env-vars=PROJECT_ID=$PROJECT_ID,GCS_BUCKET=${_GCS_BUCKET},RAG_CORPUS_NAME=${_RAG_CORPUS_NAME}'
+      - '--allow-unauthenticated'
+  
+  # Display deployment success message
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "======================================================="
+        echo "RAG Streamlit App Deployed Successfully!"
+        echo "======================================================="
+        echo "Access your app at the Cloud Run URL shown above."
+
+# Images to keep in the registry
+images:
+  - 'gcr.io/$PROJECT_ID/rag-streamlit-app:$BUILD_ID'
+  - 'gcr.io/$PROJECT_ID/rag-streamlit-app:latest'
+
+# Default substitution values
+substitutions:
+  _REGION: us-central1
+  _GCS_BUCKET: rag-research-papers
+  _RAG_CORPUS_NAME: scout_corpus
+  _SERVICE_ACCOUNT: 174522850388-compute@developer.gserviceaccount.com
+
+# Logging options
+options:
+  logging: CLOUD_LOGGING_ONLY

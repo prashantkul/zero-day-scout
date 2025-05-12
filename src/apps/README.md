@@ -2,7 +2,7 @@
 
 This directory contains a Streamlit app that demonstrates the RAG pipeline functionality.
 
-## Running the App
+## Running the App Locally
 
 To run the Streamlit app, first make sure you have set up your environment and installed the required dependencies:
 
@@ -17,6 +17,39 @@ pip install -r requirements.txt
 streamlit run src/apps/streamlit_app.py
 ```
 
+## Deploying to Cloud Run
+
+You can deploy the Streamlit app to Google Cloud Run to make it accessible as a web service:
+
+### Option 1: Using the Deployment Script
+
+```bash
+# Make the script executable
+chmod +x src/apps/deploy_streamlit.sh
+
+# Deploy with default settings
+./src/apps/deploy_streamlit.sh
+
+# Or deploy with custom settings
+./src/apps/deploy_streamlit.sh --region=us-west1 --gcs-bucket=my-bucket --corpus-name=my-corpus
+```
+
+### Option 2: Manual Deployment
+
+```bash
+# Deploy using gcloud builds
+gcloud builds submit --config=src/apps/cloudbuild-streamlit.yaml \
+  --substitutions=_REGION=us-central1,_GCS_BUCKET=your-bucket,_RAG_CORPUS_NAME=your-corpus .
+```
+
+## Environment Variables for Cloud Run
+
+The Cloud Run deployment uses the following environment variables:
+
+- `PROJECT_ID`: Set automatically from your Google Cloud project
+- `GCS_BUCKET`: GCS bucket name for document storage
+- `RAG_CORPUS_NAME`: Name of your RAG corpus
+
 ## Features
 
 The Streamlit app provides a web interface to:
@@ -27,7 +60,7 @@ The Streamlit app provides a web interface to:
 
 ## Configuration
 
-The app uses the configuration from your `.env` file, so make sure that's properly set up with:
+When running locally, the app uses the configuration from your `.env` file, so make sure that's properly set up with:
 
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_APPLICATION_CREDENTIALS`
