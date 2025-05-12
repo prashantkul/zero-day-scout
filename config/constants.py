@@ -16,7 +16,7 @@ DEFAULT_TOP_K = 5
 DEFAULT_DISTANCE_THRESHOLD = 0.6
 DEFAULT_TEMPERATURE = 0.2
 DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-preview-04-17"  # Using the same model as generative by default
-DEFAULT_USE_RERANKING = True
+DEFAULT_USE_RERANKING = False  # Disabled by default, enable after Discovery Engine API is activated
 
 # GCS settings
 DEFAULT_GCS_BUCKET = "rag-research-papers"  # Set during runtime
