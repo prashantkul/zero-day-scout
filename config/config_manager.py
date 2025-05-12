@@ -16,6 +16,8 @@ from config.constants import (
     DEFAULT_DISTANCE_THRESHOLD,
     DEFAULT_TEMPERATURE,
     DEFAULT_GCS_BUCKET,
+    DEFAULT_RERANKER_MODEL,
+    DEFAULT_USE_RERANKING,
 )
 
 
@@ -58,7 +60,9 @@ class ConfigManager:
             "top_k": int(os.getenv("RAG_TOP_K", DEFAULT_TOP_K)),
             "distance_threshold": float(os.getenv("RAG_DISTANCE_THRESHOLD", DEFAULT_DISTANCE_THRESHOLD)),
             "temperature": float(os.getenv("RAG_TEMPERATURE", DEFAULT_TEMPERATURE)),
-            
+            "reranker_model": os.getenv("RAG_RERANKER_MODEL", DEFAULT_RERANKER_MODEL),
+            "use_reranking": os.getenv("RAG_USE_RERANKING", str(DEFAULT_USE_RERANKING)).lower() == "true",
+
             # GCS settings
             "gcs_bucket": os.getenv("GCS_BUCKET", DEFAULT_GCS_BUCKET),
         }

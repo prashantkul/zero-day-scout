@@ -123,19 +123,23 @@ class VertexRagPipeline:
         return self.corpus
 
     def retrieve_context(
-        self, 
-        query: str, 
-        top_k: Optional[int] = None, 
-        distance_threshold: Optional[float] = None
+        self,
+        query: str,
+        top_k: Optional[int] = None,
+        distance_threshold: Optional[float] = None,
+        use_reranking: Optional[bool] = None,
+        reranker_model: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Retrieve context from the RAG corpus based on the query.
-        
+
         Args:
             query: The search query
             top_k: Number of top results to return (defaults to config value)
             distance_threshold: Vector distance threshold (defaults to config value)
-            
+            use_reranking: Whether to use reranking (defaults to config value)
+            reranker_model: Model to use for reranking (defaults to config value)
+
         Returns:
             List of retrieved contexts with metadata
         """
@@ -143,15 +147,35 @@ class VertexRagPipeline:
         config = get_config()
         top_k = top_k or config.get("top_k")
         distance_threshold = distance_threshold or config.get("distance_threshold")
+        use_reranking = use_reranking if use_reranking is not None else config.get("use_reranking", False)
+        reranker_model = reranker_model or config.get("reranker_model")
 
         # Ensure corpus exists
         self.get_corpus()
 
-        # Configure retrieval
-        retrieval_config = rag.RagRetrievalConfig(
-            top_k=top_k,
-            filter=rag.Filter(vector_distance_threshold=distance_threshold),
-        )
+        # Configure retrieval with optional reranking
+        retrieval_config_args = {
+            "top_k": top_k,
+            "filter": rag.Filter(vector_distance_threshold=distance_threshold),
+        }
+
+        # Add reranking if enabled
+        if use_reranking and reranker_model:
+            print(f"Using reranking with model: {reranker_model}")
+            try:
+                retrieval_config_args["ranking"] = rag.Ranking(
+                    rank_service=rag.RankService(
+                        model_name=reranker_model
+                    )
+                )
+            except Exception as e:
+                print(f"Error configuring reranking: {e}")
+                print("Falling back to standard retrieval")
+        else:
+            print("Reranking not enabled")
+
+        # Create retrieval config with or without reranking
+        retrieval_config = rag.RagRetrievalConfig(**retrieval_config_args)
 
         # Perform retrieval
         response = rag.retrieval_query(
@@ -348,7 +372,9 @@ class VertexRagPipeline:
         model_name: Optional[str] = None,
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
-        vector_distance_threshold: Optional[float] = None
+        vector_distance_threshold: Optional[float] = None,
+        use_reranking: Optional[bool] = None,
+        reranker_model: Optional[str] = None
     ) -> str:
         """
         Generate a response using RAG Engine's direct integration with LLMs.
@@ -362,7 +388,9 @@ class VertexRagPipeline:
             temperature: Temperature parameter (defaults to config value)
             top_k: Number of top results to return (defaults to config value)
             vector_distance_threshold: Optional similarity threshold (defaults to config value)
-            
+            use_reranking: Whether to use reranking (defaults to config value)
+            reranker_model: Model to use for reranking (defaults to config value)
+
         Returns:
             Generated answer
         """
@@ -372,6 +400,8 @@ class VertexRagPipeline:
         temperature = temperature or config.get("temperature")
         top_k = top_k or config.get("top_k")
         vector_distance_threshold = vector_distance_threshold or config.get("distance_threshold")
+        use_reranking = use_reranking if use_reranking is not None else config.get("use_reranking", False)
+        reranker_model = reranker_model or config.get("reranker_model")
         
         # Ensure corpus exists
         self.get_corpus()
@@ -384,7 +414,9 @@ class VertexRagPipeline:
             retrievals = self.retrieve_context(
                 query=query,
                 top_k=top_k,
-                distance_threshold=vector_distance_threshold
+                distance_threshold=vector_distance_threshold,
+                use_reranking=use_reranking,
+                reranker_model=reranker_model
             )
             
             print(f"Retrieved {len(retrievals)} contexts for direct RAG integration")
@@ -415,12 +447,12 @@ class VertexRagPipeline:
             You are using direct RAG integration to answer this question.
             Use the following information accurately to answer the question.
             If you don't know the answer based on the context, say "I don't have enough information to answer that."
-            
-            Context from RAG:
+
+            Context from RAG{" with reranking" if use_reranking else ""}:
             {context}
-            
+
             Question: {query}
-            
+
             Answer:
             """
             
