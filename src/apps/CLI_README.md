@@ -1,6 +1,6 @@
 # Zero-Day Scout CLI Tool
 
-A visually enhanced command-line interface for interacting with the Zero-Day Scout RAG pipeline, featuring progress tracking, performance metrics, and query suggestions.
+A visually enhanced command-line interface for interacting with the Zero-Day Scout RAG pipeline, featuring progress tracking, performance metrics, query suggestions, and document management functionality.
 
 ## Features
 
@@ -14,6 +14,8 @@ A visually enhanced command-line interface for interacting with the Zero-Day Sco
 - **Context visualization**: View retrieved documents when answers are limited
 - **Debug and verbose modes**: Detailed information about internal processing 
 - **Smart response handling**: Special handling for cases with limited information
+- **Document management**: View and track research papers and ingested documents
+- **Ingestion tracking**: Identify which documents have been ingested and which are pending
 
 ## Installation
 
@@ -61,6 +63,54 @@ With reranking and query suggestions:
 python -m src.apps.rag_cli --query "What are the latest zero-day vulnerabilities?" --reranking --suggest
 ```
 
+### Document Management Commands
+
+#### Listing Documents
+
+List all research papers in GCS:
+
+```bash
+python -m src.apps.rag_cli --papers
+```
+
+List research papers with detailed information:
+
+```bash
+python -m src.apps.rag_cli --papers-detailed
+```
+
+List research papers from a specific prefix:
+
+```bash
+python -m src.apps.rag_cli --papers-prefix "uploaded_papers/"
+```
+
+List ingested documents:
+
+```bash
+python -m src.apps.rag_cli --ingested
+```
+
+#### Ingesting Documents
+
+Ingest documents from all configured prefixes:
+
+```bash
+python -m src.apps.rag_cli --ingest-all
+```
+
+Ingest documents from a specific prefix:
+
+```bash
+python -m src.apps.rag_cli --ingest-prefix "uploaded_papers/"
+```
+
+Ingest specific documents:
+
+```bash
+python -m src.apps.rag_cli --ingest-paths "gs://rag-research-papers/paper1.pdf" "gs://rag-research-papers/paper2.pdf"
+```
+
 ### Advanced Usage Options
 
 ```bash
@@ -80,6 +130,13 @@ python -m src.apps.rag_cli --query "What are zero-day vulnerabilities?" --rerank
 - Type `help` to see all available commands
 - Type `suggestions` to see improvements for your last query
 - Type `history` to view previous queries
+- Type `papers` to list research papers in GCS
+- Type `papers detailed` to view detailed information about available papers
+- Type `papers <prefix>` to list papers from a specific prefix (e.g., `papers uploaded_papers/`)
+- Type `ingested` to list all ingested documents
+- Type `ingest all` to ingest documents from all configured prefixes
+- Type `ingest prefix <prefix>` to ingest documents from a specific prefix
+- Type `ingest gs://<path>` to ingest specific document(s)
 - Type `reranking` to toggle reranking on/off
 - Type `debug` to toggle debug mode on/off
 - Type `verbose` to toggle verbose mode on/off

@@ -18,6 +18,9 @@ from config.constants import (
     DEFAULT_GCS_BUCKET,
     DEFAULT_RERANKER_MODEL,
     DEFAULT_USE_RERANKING,
+    DEFAULT_DOCUMENT_PREFIXES,
+    DEFAULT_USE_CLOUD_TRACKING,
+    DEFAULT_CLOUD_TRACKING_PATH,
 )
 
 
@@ -65,6 +68,9 @@ class ConfigManager:
 
             # GCS settings
             "gcs_bucket": os.getenv("GCS_BUCKET", DEFAULT_GCS_BUCKET),
+            "document_prefixes": os.getenv("DOCUMENT_PREFIXES", ",".join(DEFAULT_DOCUMENT_PREFIXES)).split(","),
+            "use_cloud_tracking": os.getenv("USE_CLOUD_TRACKING", str(DEFAULT_USE_CLOUD_TRACKING)).lower() == "true",
+            "cloud_tracking_path": os.getenv("CLOUD_TRACKING_PATH", DEFAULT_CLOUD_TRACKING_PATH),
         }
         
         # Validate required settings

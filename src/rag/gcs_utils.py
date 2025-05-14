@@ -3,7 +3,8 @@ Utilities for working with Google Cloud Storage.
 """
 
 import os
-from typing import List, Optional
+import json
+from typing import List, Optional, Any
 
 from google.cloud import storage
 
@@ -125,3 +126,47 @@ class GcsManager:
                 uploaded_files.append(f"gs://{self.bucket_name}/{gcs_path}")
         
         return uploaded_files
+        
+    def read_json(self, gcs_path: str) -> Any:
+        """
+        Read JSON data from a file in GCS.
+        
+        Args:
+            gcs_path: Path to the file in GCS (e.g., 'tracking/ingested_docs.json')
+            
+        Returns:
+            Parsed JSON content or None if file doesn't exist
+        """
+        # Get bucket
+        bucket = self.client.get_bucket(self.bucket_name)
+        
+        # Get blob
+        blob = bucket.blob(gcs_path)
+        
+        # Check if file exists
+        if not blob.exists():
+            return None
+        
+        # Download and parse JSON
+        content = blob.download_as_text()
+        return json.loads(content)
+    
+    def write_json(self, gcs_path: str, data: Any) -> None:
+        """
+        Write JSON data to a file in GCS.
+        
+        Args:
+            gcs_path: Path to the file in GCS (e.g., 'tracking/ingested_docs.json')
+            data: Data to write (must be JSON serializable)
+        """
+        # Get bucket
+        bucket = self.client.get_bucket(self.bucket_name)
+        
+        # Get blob
+        blob = bucket.blob(gcs_path)
+        
+        # Convert data to JSON
+        content = json.dumps(data, indent=2)
+        
+        # Upload JSON
+        blob.upload_from_string(content, content_type='application/json')

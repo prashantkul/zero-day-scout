@@ -4,7 +4,9 @@ using Google Cloud Vertex AI RAG Engine with RagManagedDb.
 """
 
 import os
-from typing import List, Dict, Any, Optional, Union
+import json
+from typing import List, Dict, Any, Optional, Union, Set
+from pathlib import Path
 
 from google.cloud import aiplatform
 from vertexai import rag
@@ -26,6 +28,8 @@ class VertexRagPipeline:
         location: Optional[str] = None,
         corpus_name: Optional[str] = None,
         embedding_model: Optional[str] = None,
+        tracking_file: Optional[str] = None,
+        use_cloud_tracking: Optional[bool] = None,
     ):
         """
         Initialize the RAG pipeline.
@@ -35,6 +39,8 @@ class VertexRagPipeline:
             location: Google Cloud region (defaults to config value)
             corpus_name: Name for the RAG corpus (defaults to config value)
             embedding_model: Name of the embedding model (defaults to config value)
+            tracking_file: Path to file tracking ingested documents (defaults to .ingested_docs.json)
+            use_cloud_tracking: Whether to use cloud storage for tracking (defaults to config value)
         """
         # Load configuration
         config = get_config()
@@ -44,7 +50,25 @@ class VertexRagPipeline:
         self.location = location or config.get("location")
         self.corpus_name = corpus_name or config.get("corpus_name")
         self.embedding_model = embedding_model or config.get("embedding_model")
+        self.document_prefixes = config.get("document_prefixes", [])
         self.corpus = None
+        
+        # Document tracking settings
+        self.use_cloud_tracking = use_cloud_tracking if use_cloud_tracking is not None else config.get("use_cloud_tracking", True)
+        
+        # Set up tracking file paths for both local and cloud
+        if self.use_cloud_tracking:
+            # Cloud tracking path - use a standard location in the bucket
+            self.cloud_tracking_path = config.get("cloud_tracking_path", "tracking/ingested_docs.json")
+        
+        # Local tracking is still supported as fallback
+        self.tracking_file = tracking_file or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            ".ingested_docs.json"
+        )
+        
+        # Load the ingested documents
+        self.ingested_documents = self._load_ingested_documents()
 
         # Initialize Vertex AI
         aiplatform.init(project=self.project_id, location=self.location)
@@ -74,26 +98,118 @@ class VertexRagPipeline:
         print(f"Created RAG corpus: {self.corpus.name}")
         return self.corpus
 
+    def _load_ingested_documents(self) -> Set[str]:
+        """
+        Load the set of previously ingested documents from cloud or local storage.
+        
+        Returns:
+            Set of ingested document paths
+        """
+        # Initialize empty set
+        documents = set()
+        
+        try:
+            # Try cloud storage first if enabled
+            if self.use_cloud_tracking:
+                from src.rag.gcs_utils import GcsManager
+                try:
+                    gcs_manager = GcsManager(project_id=self.project_id, bucket_name=None)
+                    cloud_docs = gcs_manager.read_json(self.cloud_tracking_path)
+                    
+                    if cloud_docs is not None:
+                        print(f"Loaded {len(cloud_docs)} ingested documents from cloud storage")
+                        documents.update(cloud_docs)
+                        return documents
+                except Exception as cloud_e:
+                    print(f"Warning: Could not load ingested documents from cloud: {cloud_e}")
+                    print("Falling back to local tracking file")
+            
+            # Fall back to local file if cloud fails or is disabled
+            if os.path.exists(self.tracking_file):
+                with open(self.tracking_file, 'r') as f:
+                    local_docs = json.load(f)
+                    documents.update(local_docs)
+                    print(f"Loaded {len(local_docs)} ingested documents from local file")
+            
+            return documents
+            
+        except Exception as e:
+            print(f"Warning: Could not load ingested documents: {e}")
+            return set()
+    
+    def _save_ingested_documents(self) -> None:
+        """
+        Save the current set of ingested documents to cloud and/or local storage.
+        """
+        doc_list = list(self.ingested_documents)
+        
+        # Save to cloud if enabled
+        if self.use_cloud_tracking:
+            try:
+                from src.rag.gcs_utils import GcsManager
+                gcs_manager = GcsManager(project_id=self.project_id, bucket_name=None)
+                gcs_manager.write_json(self.cloud_tracking_path, doc_list)
+                print(f"Saved {len(doc_list)} ingested documents to cloud storage")
+            except Exception as cloud_e:
+                print(f"Warning: Could not save ingested documents to cloud: {cloud_e}")
+                print("Falling back to local tracking file")
+        
+        # Also save locally as backup, if cloud saving fails or is disabled
+        try:
+            with open(self.tracking_file, 'w') as f:
+                json.dump(doc_list, f)
+                if not self.use_cloud_tracking:
+                    print(f"Saved {len(doc_list)} ingested documents to local file")
+        except Exception as e:
+            print(f"Warning: Could not save ingested documents to local file: {e}")
+    
     def ingest_documents(self, gcs_paths: List[str]) -> Dict[str, Any]:
         """
         Ingest documents from GCS bucket into the RAG corpus.
         
         Args:
             gcs_paths: List of GCS paths (e.g., ["gs://bucket_name/folder/file.pdf"])
+            If empty, reads from document_prefixes configured in settings.
             
         Returns:
             Import operation details
         """
         if not self.corpus:
             self.create_corpus()
-
+        
+        # Use document prefixes if no paths provided
+        if not gcs_paths:
+            from src.rag.gcs_utils import GcsManager
+            gcs_manager = GcsManager(project_id=self.project_id, bucket_name=None)
+            
+            all_paths = []
+            for prefix in self.document_prefixes:
+                paths = gcs_manager.list_files(prefix=prefix)
+                all_paths.extend(paths)
+                print(f"Found {len(paths)} documents with prefix '{prefix}'")
+            
+            gcs_paths = all_paths
+        
+        # Filter out already ingested documents
+        new_documents = [path for path in gcs_paths if path not in self.ingested_documents]
+        
+        if not new_documents:
+            print("No new documents to ingest.")
+            return {"status": "skipped", "message": "No new documents to ingest"}
+        
+        print(f"Ingesting {len(new_documents)} new documents (skipping {len(gcs_paths) - len(new_documents)} already ingested)")
+        
         # Import files to the RAG corpus
         import_op = rag.import_files(
             self.corpus.name,
-            gcs_paths
+            new_documents
         )
-
-        print(f"Started document ingestion from: {gcs_paths}")
+        
+        # Update tracking
+        self.ingested_documents.update(new_documents)
+        self._save_ingested_documents()
+        
+        print(f"Started document ingestion from: {new_documents}")
         return import_op
 
     def get_corpus(self) -> Optional[rag.RagCorpus]:
@@ -192,28 +308,28 @@ class VertexRagPipeline:
             text=query,
             rag_retrieval_config=retrieval_config
         )
-        
+
         # According to the documentation, the response has a 'contexts' attribute
         # but it may not be directly iterable
         results = []
-        
+
         try:
             # Print debug info about the response
             print(f"Response type: {type(response).__name__}")
-            print(f"Response attributes: {dir(response)}")
-            
+            # print(f"Response attributes: {dir(response)}")
+
             # Handle RagContexts specifically - it may have a different structure
             if hasattr(response, 'contexts'):
                 contexts_obj = response.contexts
                 print(f"Contexts type: {type(contexts_obj).__name__}")
-                print(f"Contexts attributes: {dir(contexts_obj)}")
-                
+                # print(f"Contexts attributes: {dir(contexts_obj)}")
+
                 # Try different ways to access the contexts
-                
+
                 # If contexts is directly a context object with text
                 if hasattr(contexts_obj, 'text'):
                     results.append(contexts_obj)
-                
+
                 # If contexts has a contexts field (nested structure)
                 elif hasattr(contexts_obj, 'contexts'):
                     nested_contexts = contexts_obj.contexts
@@ -225,7 +341,7 @@ class VertexRagPipeline:
                         # If not iterable, it might be a single context
                         if hasattr(nested_contexts, 'text'):
                             results.append(nested_contexts)
-                
+
                 # If it has a get_contexts or similar method
                 elif hasattr(contexts_obj, 'get_contexts') and callable(contexts_obj.get_contexts):
                     try:
@@ -234,7 +350,7 @@ class VertexRagPipeline:
                             results.append(context)
                     except Exception as e:
                         print(f"Error calling get_contexts: {e}")
-                
+
                 # If it has a data attribute
                 elif hasattr(contexts_obj, 'data'):
                     data = contexts_obj.data
@@ -242,7 +358,7 @@ class VertexRagPipeline:
                         results.extend(data)
                     else:
                         results.append(data)
-                
+
                 # Last resort: try direct attribute access for common patterns
                 else:
                     # Try to access individual contexts by index if it supports item access
@@ -256,7 +372,7 @@ class VertexRagPipeline:
                                 break
                     except Exception:
                         pass
-            
+
             # For backward compatibility
             elif hasattr(response, 'retrievals'):
                 results = response.retrievals
@@ -264,10 +380,10 @@ class VertexRagPipeline:
                 results = response.retrieval_contexts
             else:
                 print(f"Warning: Could not find expected contexts in response")
-            
+
         except Exception as e:
             print(f"Error processing response: {e}")
-        
+
         print(f"Found {len(results)} results")
         return results
 
@@ -332,7 +448,7 @@ class VertexRagPipeline:
                 context_parts.append(r.content)
             else:
                 print(f"Warning: Could not find text content in context object. Available fields: {dir(r)}")
-                
+
         context = "\n\n".join(context_parts)
 
         # Create generative model
@@ -407,13 +523,13 @@ class VertexRagPipeline:
         vector_distance_threshold = vector_distance_threshold or config.get("distance_threshold")
         use_reranking = use_reranking if use_reranking is not None else config.get("use_reranking", False)
         reranker_model = reranker_model or config.get("reranker_model")
-        
+
         # Ensure corpus exists
         self.get_corpus()
-        
+
         try:
             print(f"Using direct RAG integration for query: {query}")
-            
+
             # In Vertex AI v1.92.0, we need to use a different approach for RAG integration
             # First, we get the contexts directly
             retrievals = self.retrieve_context(
@@ -423,12 +539,12 @@ class VertexRagPipeline:
                 use_reranking=use_reranking,
                 reranker_model=reranker_model
             )
-            
+
             print(f"Retrieved {len(retrievals)} contexts for direct RAG integration")
-            
+
             if not retrievals:
                 return "No relevant information found."
-            
+
             # Format context for the model
             context_parts = []
             for r in retrievals:
@@ -440,13 +556,13 @@ class VertexRagPipeline:
                     context_parts.append(r.content)
                 else:
                     print(f"Warning: Could not find text content in context object. Available fields: {dir(r)}")
-                    
+
             context = "\n\n".join(context_parts)
-            
+
             # Use generative model with the retrieved context
             # This simulates a direct integration by using the most recent contexts
             model = GenerativeModel(model_name)
-            
+
             # Use a prompt that identifies this was retrieved with RAG
             prompt = f"""
             You are using direct RAG integration to answer this question.
@@ -460,20 +576,20 @@ class VertexRagPipeline:
 
             Answer:
             """
-            
+
             # Generate response
             response = model.generate_content(
                 prompt,
                 generation_config={"temperature": temperature} if temperature is not None else None
             )
-            
+
             print("Successfully generated response using direct RAG integration")
             return response.text
-            
+
         except Exception as e:
             print(f"Error in direct RAG integration: {e}")
             print("Falling back to manual RAG implementation...")
-            
+
             # Fall back to the standard two-step approach
             return self.generate_answer(
                 query=query,

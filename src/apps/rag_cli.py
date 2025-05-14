@@ -656,6 +656,342 @@ def explain_reranking_benefits() -> Panel:
     )
 
 
+def list_research_papers(pipeline=None, prefix=None, detailed=False):
+    """
+    List research papers from GCS.
+    
+    Args:
+        pipeline: An existing VertexRagPipeline instance (optional)
+        prefix: Optional prefix to filter results
+        detailed: Whether to show detailed paper information
+    """
+    # Create pipeline if not provided
+    if not pipeline:
+        with Status("[info]Initializing pipeline...[/info]", spinner="dots") as status:
+            try:
+                pipeline = VertexRagPipeline()
+            except Exception as e:
+                console.print(f"[error]Error initializing pipeline: {e}[/error]")
+                return
+    
+    # Create GCS manager
+    gcs_manager = None
+    try:
+        from src.rag.gcs_utils import GcsManager
+        gcs_manager = GcsManager(project_id=pipeline.project_id, bucket_name=None)
+    except Exception as e:
+        console.print(f"[error]Error initializing GCS manager: {e}[/error]")
+        return
+    
+    # Get document prefixes from config
+    config = get_config()
+    doc_prefixes = config.get("document_prefixes", [])
+    
+    with Status("[info]Retrieving papers from GCS...[/info]", spinner="dots") as status:
+        try:
+            # Collect papers by prefix
+            papers_by_prefix = {}
+            all_papers = set()
+            
+            # If specific prefix provided, only check that one
+            prefixes_to_check = [prefix] if prefix else doc_prefixes
+            
+            for p in prefixes_to_check:
+                papers = gcs_manager.list_files(prefix=p)
+                if papers:
+                    # Filter out directories (which usually end with /)
+                    papers = [paper for paper in papers if not paper.endswith('/')]
+                    papers_by_prefix[p] = papers
+                    all_papers.update(papers)
+            
+            if not all_papers:
+                console.print("[yellow]No research papers found.[/yellow]")
+                return
+            
+            # Get ingested papers for comparison
+            ingested_papers = set()
+            if hasattr(pipeline, 'ingested_documents'):
+                ingested_papers = pipeline.ingested_documents
+            
+            # Create table for displaying papers
+            table = Table(
+                title=f"[bold]Research Papers in GCS[/bold] (Found: {len(all_papers)})",
+                box=box.ROUNDED,
+                expand=True
+            )
+            
+            table.add_column("Prefix", style="cyan")
+            table.add_column("Paper Name", style="green")
+            table.add_column("Status", style="yellow")
+            if detailed:
+                table.add_column("Path", style="blue")
+                table.add_column("Size", style="magenta")
+            
+            # Organize papers by prefix for display
+            for prefix, papers in papers_by_prefix.items():
+                console.print(f"[info]Found {len(papers)} papers in prefix '{prefix}'[/info]")
+                
+                for i, paper in enumerate(papers):
+                    # Extract filename from path
+                    filename = paper.split('/')[-1]
+                    
+                    # Determine if paper has been ingested
+                    status_str = "[green]Ingested[/green]" if paper in ingested_papers else "[dim]Not Ingested[/dim]"
+                    
+                    # Get paper size if detailed view is requested
+                    size_str = ""
+                    if detailed:
+                        try:
+                            # Get file metadata from GCS
+                            bucket_name = paper.split('/')[2]
+                            blob_name = '/'.join(paper.split('/')[3:])
+                            
+                            bucket = gcs_manager.client.bucket(bucket_name)
+                            blob = bucket.blob(blob_name)
+                            blob.reload()
+                            
+                            # Format size
+                            size_bytes = blob.size
+                            if size_bytes < 1024:
+                                size_str = f"{size_bytes} B"
+                            elif size_bytes < 1024 * 1024:
+                                size_str = f"{size_bytes/1024:.1f} KB"
+                            else:
+                                size_str = f"{size_bytes/(1024*1024):.1f} MB"
+                        except Exception:
+                            size_str = "Unknown"
+                    
+                    # Add row to table
+                    if detailed:
+                        table.add_row(
+                            prefix if i == 0 else "", 
+                            filename, 
+                            status_str,
+                            paper,
+                            size_str
+                        )
+                    else:
+                        table.add_row(
+                            prefix if i == 0 else "", 
+                            filename, 
+                            status_str
+                        )
+            
+            console.print(table)
+            
+            # Show summary
+            console.print(f"\n[bold]Summary:[/bold]")
+            ingested_count = len(all_papers.intersection(ingested_papers))
+            not_ingested = len(all_papers) - ingested_count
+            console.print(f"Total papers: {len(all_papers)}")
+            console.print(f"Ingested: [green]{ingested_count}[/green]")
+            console.print(f"Not ingested: [yellow]{not_ingested}[/yellow]")
+            
+        except Exception as e:
+            console.print(f"[error]Error listing research papers: {e}[/error]")
+
+
+def ingest_documents(pipeline=None, prefix=None, specific_paths=None):
+    """
+    Ingest documents into the RAG corpus.
+    
+    Args:
+        pipeline: An existing VertexRagPipeline instance (optional)
+        prefix: Optional prefix to ingest documents from
+        specific_paths: List of specific GCS paths to ingest
+    
+    Returns:
+        Success status as boolean
+    """
+    # Create pipeline if not provided
+    if not pipeline:
+        with Status("[info]Initializing pipeline...[/info]", spinner="dots") as status:
+            try:
+                pipeline = VertexRagPipeline()
+            except Exception as e:
+                console.print(f"[error]Error initializing pipeline: {e}[/error]")
+                return False
+    
+    with Status("[info]Ingesting documents...[/info]", spinner="dots") as status:
+        try:
+            # Determine which documents to ingest
+            gcs_paths = []
+            
+            # If specific paths provided, use those
+            if specific_paths:
+                gcs_paths = specific_paths
+                status.update(f"[info]Ingesting {len(gcs_paths)} specified documents...[/info]")
+            
+            # If prefix provided, list files with that prefix
+            elif prefix:
+                from src.rag.gcs_utils import GcsManager
+                gcs_manager = GcsManager(project_id=pipeline.project_id, bucket_name=None)
+                gcs_paths = gcs_manager.list_files(prefix=prefix)
+                
+                if not gcs_paths:
+                    console.print(f"[yellow]No documents found with prefix '{prefix}'.[/yellow]")
+                    return False
+                
+                status.update(f"[info]Found {len(gcs_paths)} documents with prefix '{prefix}'.[/info]")
+            
+            # Otherwise use default document prefixes from config
+            else:
+                status.update("[info]Using configured document prefixes...[/info]")
+                # Empty list will cause pipeline to use the configured prefixes
+                gcs_paths = []
+            
+            # Display what will be ingested
+            if specific_paths or prefix:
+                # Show a preview of the files to be ingested
+                preview_limit = min(5, len(gcs_paths))
+                preview_files = [path.split('/')[-1] for path in gcs_paths[:preview_limit]]
+                preview_str = ", ".join(preview_files)
+                
+                if len(gcs_paths) > preview_limit:
+                    preview_str += f", and {len(gcs_paths) - preview_limit} more"
+                
+                console.print(f"[info]Ingesting documents: {preview_str}[/info]")
+            
+            # Track the count of already ingested documents
+            ingested_before = len(pipeline.ingested_documents) if hasattr(pipeline, 'ingested_documents') else 0
+            
+            # Perform ingestion
+            import_op = pipeline.ingest_documents(gcs_paths)
+            
+            # Determine if any new documents were ingested
+            ingested_after = len(pipeline.ingested_documents) if hasattr(pipeline, 'ingested_documents') else 0
+            newly_ingested = ingested_after - ingested_before
+            
+            # Display results
+            if isinstance(import_op, dict) and import_op.get("status") == "skipped":
+                console.print("[yellow]No new documents to ingest - all documents have already been ingested.[/yellow]")
+                return True
+            
+            console.print(f"[green]Successfully started ingestion of {newly_ingested} new documents.[/green]")
+            
+            # Ask if we should wait for completion
+            try:
+                if hasattr(import_op, "operation") and sys.stdin.isatty():
+                    wait = Prompt.ask("[info]Wait for ingestion to complete?[/info] (y/n)").lower() in ('y', 'yes')
+                    if wait:
+                        with Status("[info]Waiting for ingestion to complete...[/info]", spinner="dots") as wait_status:
+                            import_op.operation.wait()
+                        console.print("[green]Ingestion completed successfully![/green]")
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Waiting for ingestion was interrupted. The ingestion is still in progress.[/yellow]")
+                return True
+            
+            return True
+            
+        except Exception as e:
+            console.print(f"[error]Error ingesting documents: {e}[/error]")
+            return False
+
+
+def list_ingested_documents(pipeline=None):
+    """
+    List documents that have been ingested into the RAG corpus.
+    
+    Args:
+        pipeline: An existing VertexRagPipeline instance (optional)
+    """
+    # Create pipeline if not provided
+    if not pipeline:
+        with Status("[info]Initializing pipeline...[/info]", spinner="dots") as status:
+            try:
+                pipeline = VertexRagPipeline()
+            except Exception as e:
+                console.print(f"[error]Error initializing pipeline: {e}[/error]")
+                return
+    
+    with Status("[info]Retrieving ingested documents...[/info]", spinner="dots") as status:
+        try:
+            # Get tracking file information
+            tracking_file = pipeline.tracking_file if hasattr(pipeline, 'tracking_file') else None
+            ingested_docs = pipeline.ingested_documents if hasattr(pipeline, 'ingested_documents') else set()
+            
+            # Get corpus files from the RAG engine
+            try:
+                corpus_files = pipeline.list_corpus_files()
+                corpus_files = list(corpus_files) if corpus_files else []
+            except Exception as e:
+                console.print(f"[yellow]Could not retrieve corpus files from Vertex AI: {e}[/yellow]")
+                corpus_files = []
+            
+            # Display tracking information
+            if tracking_file:
+                console.print(f"[info]Document tracking file: {tracking_file}[/info]")
+            
+            if not ingested_docs and not corpus_files:
+                console.print("[yellow]No ingested documents found.[/yellow]")
+                return
+            
+            # Create table for ingested documents from tracking
+            if ingested_docs:
+                tracking_table = Table(
+                    title=f"[bold]Tracked Ingested Documents[/bold] (Count: {len(ingested_docs)})",
+                    box=box.ROUNDED,
+                    expand=True
+                )
+                
+                tracking_table.add_column("Prefix", style="cyan")
+                tracking_table.add_column("Document Name", style="green")
+                tracking_table.add_column("Full Path", style="blue")
+                
+                # Group documents by prefix for better display
+                docs_by_prefix = {}
+                for doc in ingested_docs:
+                    # Extract prefix (up to the second-to-last path component)
+                    path_parts = doc.split('/')
+                    if len(path_parts) > 4:  # gs://bucket/prefix/filename
+                        prefix = '/'.join(path_parts[:-1]) + '/'
+                    else:
+                        prefix = '/'.join(path_parts[:-1]) + '/'
+                    
+                    if prefix not in docs_by_prefix:
+                        docs_by_prefix[prefix] = []
+                    
+                    docs_by_prefix[prefix].append(doc)
+                
+                # Add rows to table organized by prefix
+                for prefix, docs in docs_by_prefix.items():
+                    for i, doc in enumerate(docs):
+                        # Extract filename from path
+                        filename = doc.split('/')[-1]
+                        
+                        tracking_table.add_row(
+                            prefix if i == 0 else "",
+                            filename,
+                            doc
+                        )
+                
+                console.print(tracking_table)
+            
+            # Create table for corpus files from Vertex AI
+            if corpus_files:
+                corpus_table = Table(
+                    title=f"[bold]Vertex AI RAG Corpus Files[/bold] (Count: {len(corpus_files)})",
+                    box=box.ROUNDED,
+                    expand=True
+                )
+                
+                corpus_table.add_column("ID", style="dim")
+                corpus_table.add_column("Name", style="green")
+                corpus_table.add_column("State", style="yellow")
+                
+                for file_info in corpus_files:
+                    file_id = file_info.name if hasattr(file_info, "name") else "Unknown"
+                    display_name = file_info.display_name if hasattr(file_info, "display_name") else "Unknown"
+                    state = file_info.state if hasattr(file_info, "state") else "Unknown"
+                    
+                    corpus_table.add_row(file_id, display_name, state)
+                
+                console.print(corpus_table)
+            
+        except Exception as e:
+            console.print(f"[error]Error listing ingested documents: {e}[/error]")
+
+
 def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: bool = False):
     """Run the CLI in interactive mode for multiple queries."""
     # Show the logo first
@@ -691,6 +1027,14 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
     # Command history
     history = []
     
+    # Create pipeline once for reuse
+    pipeline = None
+    try:
+        with Status("[info]Initializing pipeline...[/info]", spinner="dots") as status:
+            pipeline = VertexRagPipeline()
+    except Exception as e:
+        console.print(f"[error]Error initializing pipeline: {e}[/error]")
+    
     while True:
         try:
             query = Prompt.ask("\n[query]Enter your query or command[/query]")
@@ -708,6 +1052,15 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
                 "[bold]exit[/bold] or [bold]quit[/bold] - Exit the application\n"
                 "[bold]suggestions[/bold] - Get query improvement suggestions\n"
                 "[bold]history[/bold] - Show query history\n"
+                "\n[bold cyan]Document Management:[/bold cyan]\n"
+                "[bold]papers[/bold] - List research papers in GCS\n"
+                "[bold]papers detailed[/bold] - List research papers with detailed information\n"
+                "[bold]papers <prefix>[/bold] - List research papers from a specific prefix\n"
+                "[bold]ingested[/bold] - List ingested documents\n"
+                "[bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
+                "[bold]ingest prefix <prefix>[/bold] - Ingest documents from a specific prefix\n"
+                "[bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n"
+                "\n[bold cyan]Settings:[/bold cyan]\n"
                 f"[bold]reranking[/bold] - {'Disable' if use_reranking else 'Enable'} reranking\n"
                 f"[bold]debug[/bold] - {'Disable' if debug else 'Enable'} debug mode\n"
                 f"[bold]verbose[/bold] - {'Disable' if verbose else 'Enable'} verbose mode with context display\n"
@@ -781,6 +1134,63 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
         if query.lower() == 'clear':
             console.clear()
             console.print(header)
+            continue
+        
+        # Handle research papers listing
+        if query.lower().startswith('papers'):
+            parts = query.split()
+            if len(parts) > 1:
+                if parts[1].lower() == 'detailed':
+                    list_research_papers(pipeline=pipeline, detailed=True)
+                else:
+                    # Assume the second part is a prefix
+                    prefix = parts[1]
+                    list_research_papers(pipeline=pipeline, prefix=prefix)
+            else:
+                list_research_papers(pipeline=pipeline)
+            continue
+        
+        # Handle ingested documents listing
+        if query.lower() == 'ingested':
+            list_ingested_documents(pipeline=pipeline)
+            continue
+            
+        # Handle document ingestion commands
+        if query.lower().startswith('ingest'):
+            parts = query.split()
+            if len(parts) > 1:
+                # Extract prefix or specific paths
+                if parts[1].lower() == 'all':
+                    # Ingest using all configured prefixes
+                    console.print("[info]Ingesting documents from all configured prefixes...[/info]")
+                    ingest_documents(pipeline=pipeline)
+                elif parts[1].lower() == 'prefix' and len(parts) > 2:
+                    # Ingest from specific prefix
+                    prefix = parts[2]
+                    console.print(f"[info]Ingesting documents from prefix '{prefix}'...[/info]")
+                    ingest_documents(pipeline=pipeline, prefix=prefix)
+                elif parts[1].startswith('gs://'):
+                    # Ingest specific GCS paths
+                    paths = [p for p in parts[1:] if p.startswith('gs://')]
+                    console.print(f"[info]Ingesting {len(paths)} specific documents...[/info]")
+                    ingest_documents(pipeline=pipeline, specific_paths=paths)
+                else:
+                    console.print("[yellow]Invalid ingest command. Try 'ingest all', 'ingest prefix <prefix>', or 'ingest gs://<path>'[/yellow]")
+            else:
+                # Show help for ingest command
+                ingest_help = Panel(
+                    "Ingest command usage:\n"
+                    "  [bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
+                    "  [bold]ingest prefix <prefix>[/bold] - Ingest documents from a specific prefix\n"
+                    "  [bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n\n"
+                    "Examples:\n"
+                    "  ingest all\n"
+                    "  ingest prefix uploaded_papers/\n"
+                    "  ingest gs://rag-research-papers/research/paper.pdf",
+                    title="Ingest Command Help",
+                    border_style="blue"
+                )
+                console.print(ingest_help)
             continue
             
         # Save the last query for suggestions and add to history
@@ -1188,6 +1598,13 @@ def main():
     parser.add_argument("--no-splash", action="store_true", help="Skip splash screen")
     parser.add_argument("--debug", "-d", action="store_true", help="Show debug information")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show verbose output including contexts")
+    parser.add_argument("--papers", action="store_true", help="List research papers in GCS")
+    parser.add_argument("--papers-detailed", action="store_true", help="List research papers with detailed information")
+    parser.add_argument("--papers-prefix", help="List research papers with the specified prefix")
+    parser.add_argument("--ingested", action="store_true", help="List ingested documents")
+    parser.add_argument("--ingest-all", action="store_true", help="Ingest documents from all configured prefixes")
+    parser.add_argument("--ingest-prefix", help="Ingest documents from the specified prefix")
+    parser.add_argument("--ingest-paths", nargs='+', help="Ingest specific document paths (space-separated list of gs:// URLs)")
     args = parser.parse_args()
     
     # Load environment variables
@@ -1202,6 +1619,40 @@ def main():
     
     # Wrap the entire execution in a try block to handle any exceptions gracefully
     try:
+        # Handle papers-related commands first
+        if args.papers or args.papers_detailed or args.papers_prefix:
+            show_logo()
+            if args.papers_prefix:
+                list_research_papers(prefix=args.papers_prefix, detailed=args.papers_detailed)
+            else:
+                list_research_papers(detailed=args.papers_detailed)
+            return 0
+            
+        # Handle ingested documents listing
+        if args.ingested:
+            show_logo()
+            list_ingested_documents()
+            return 0
+            
+        # Handle document ingestion commands
+        if args.ingest_all or args.ingest_prefix or args.ingest_paths:
+            show_logo()
+            
+            if args.ingest_paths:
+                # Ingest specific paths
+                console.print(f"[info]Ingesting {len(args.ingest_paths)} specific documents...[/info]")
+                success = ingest_documents(specific_paths=args.ingest_paths)
+            elif args.ingest_prefix:
+                # Ingest from specific prefix
+                console.print(f"[info]Ingesting documents from prefix '{args.ingest_prefix}'...[/info]")
+                success = ingest_documents(prefix=args.ingest_prefix)
+            else:  # args.ingest_all
+                # Ingest using all configured prefixes
+                console.print("[info]Ingesting documents from all configured prefixes...[/info]")
+                success = ingest_documents()
+                
+            return 0 if success else 1
+            
         if args.query:
             # Single query mode - show logo
             show_logo()

@@ -259,19 +259,115 @@ def main():
         
         else:  # Upload local files
             st.subheader("Upload Local Files")
-            st.warning("This feature is not fully implemented in this demo.")
             
             # File uploader (multi-file)
             uploaded_files = st.file_uploader(
                 "Choose files to upload",
-                accept_multiple_files=True
+                accept_multiple_files=True,
+                type=["pdf", "txt", "md", "docx"]
             )
             
-            gcs_prefix = st.text_input("GCS Prefix for uploaded files:", value="uploaded_files")
+            # Display upload status
+            if uploaded_files:
+                st.success(f"Selected {len(uploaded_files)} files for upload")
+                
+                # Display selected files
+                with st.expander("Selected Files", expanded=True):
+                    for file in uploaded_files:
+                        st.write(f"- {file.name} ({file.type}) - {file.size} bytes")
+            
+            # Upload options
+            upload_col1, upload_col2 = st.columns(2)
+            with upload_col1:
+                gcs_prefix = st.text_input("GCS Prefix for uploaded files:", value="uploaded_papers/")
+            with upload_col2:
+                include_timestamp = st.checkbox("Add timestamp to filenames", value=True)
             
             if st.button("Upload and Ingest") and uploaded_files:
-                st.info("This would upload files to GCS and ingest them into the RAG corpus.")
-                # Implementation would save files to temp location, then use gcs_manager to upload
+                if not st.session_state.gcs_initialized or not st.session_state.pipeline_initialized:
+                    st.error("GCS or RAG Pipeline not initialized. Check connection status.")
+                    return
+                
+                with st.spinner("Uploading and ingesting documents..."):
+                    try:
+                        # Create temp directory for files
+                        import tempfile
+                        import uuid
+                        
+                        # Track uploaded GCS paths
+                        uploaded_gcs_paths = []
+                        
+                        # Progress indicators
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Process each file
+                        for i, file in enumerate(uploaded_files):
+                            # Update progress
+                            progress = (i / len(uploaded_files))
+                            progress_bar.progress(progress)
+                            status_text.text(f"Uploading {file.name}...")
+                            
+                            # Create a temporary file
+                            temp_dir = tempfile.mkdtemp()
+                            temp_path = os.path.join(temp_dir, file.name)
+                            
+                            # Write the uploaded file to the temp file
+                            with open(temp_path, "wb") as f:
+                                f.write(file.getbuffer())
+                            
+                            # Determine GCS path
+                            filename = file.name
+                            if include_timestamp:
+                                name, ext = os.path.splitext(filename)
+                                timestamp = time.strftime("%Y%m%d-%H%M%S")
+                                unique_id = str(uuid.uuid4())[:8]  # Use part of a UUID for uniqueness
+                                filename = f"{name}_{timestamp}_{unique_id}{ext}"
+                            
+                            gcs_path = os.path.join(gcs_prefix, filename)
+                            
+                            # Upload to GCS
+                            gcs_uri = st.session_state.gcs_manager.upload_file(temp_path, gcs_path)
+                            uploaded_gcs_paths.append(gcs_uri)
+                            
+                            # Clean up temp file
+                            os.remove(temp_path)
+                            os.rmdir(temp_dir)
+                        
+                        # Update progress to show completion of uploads
+                        progress_bar.progress(1.0)
+                        status_text.text(f"Successfully uploaded {len(uploaded_gcs_paths)} files. Starting ingestion...")
+                        
+                        # Ingest uploaded documents
+                        import_op = st.session_state.pipeline.ingest_documents(uploaded_gcs_paths)
+                        
+                        # Show success message
+                        st.success(f"Successfully uploaded and started ingestion of {len(uploaded_gcs_paths)} documents")
+                        st.json({
+                            "uploaded_files": [path.split('/')[-1] for path in uploaded_gcs_paths],
+                            "ingestion_status": "in_progress"
+                        })
+                        
+                        # Wait for ingestion to complete
+                        wait = st.checkbox("Wait for ingestion to complete?")
+                        if wait and hasattr(import_op, "operation"):
+                            wait_status = st.empty()
+                            wait_progress = st.progress(0)
+                            
+                            # Wait with a simulated progress bar
+                            wait_status.text("Waiting for ingestion to complete...")
+                            for i in range(100):
+                                wait_progress.progress(i + 1)
+                                time.sleep(0.1)
+                            
+                            # Actual wait
+                            import_op.operation.wait()
+                            wait_status.text("Ingestion completed!")
+                            st.balloons()
+                            
+                    except Exception as e:
+                        st.error(f"Error uploading and ingesting documents: {e}")
+                        st.exception(e)
     
     # Tab 3: View Files
     with tab3:
