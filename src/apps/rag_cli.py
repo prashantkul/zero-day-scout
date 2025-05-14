@@ -851,7 +851,7 @@ def recreate_corpus(pipeline=None):
             return False
 
 
-def ingest_documents(pipeline=None, prefix=None, specific_paths=None):
+def ingest_documents(pipeline=None, prefix=None, specific_paths=None, recreate_first=False):
     """
     Ingest documents into the RAG corpus.
     
@@ -859,6 +859,7 @@ def ingest_documents(pipeline=None, prefix=None, specific_paths=None):
         pipeline: An existing VertexRagPipeline instance (optional)
         prefix: Optional prefix to ingest documents from
         specific_paths: List of specific GCS paths to ingest
+        recreate_first: Whether to recreate the corpus before ingestion
     
     Returns:
         Success status as boolean
@@ -871,6 +872,15 @@ def ingest_documents(pipeline=None, prefix=None, specific_paths=None):
             except Exception as e:
                 console.print(f"[error]Error initializing pipeline: {e}[/error]")
                 return False
+    
+    # Recreate corpus if requested
+    if recreate_first:
+        console.print("[info]Recreating corpus before ingestion...[/info]")
+        corpus_success = recreate_corpus(pipeline=pipeline)
+        if not corpus_success:
+            console.print("[error]Failed to recreate corpus. Aborting ingestion.[/error]")
+            return False
+        console.print("[green]Corpus recreation successful. Proceeding with ingestion...[/green]")
     
     with Status("[info]Ingesting documents...[/info]", spinner="dots") as status:
         try:
@@ -1052,8 +1062,8 @@ def list_ingested_documents(pipeline=None):
             console.print(f"[error]Error listing ingested documents: {e}[/error]")
 
 
-def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: bool = False):
-    """Run the CLI in interactive mode for multiple queries."""
+def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: bool = False):
+    """Run the CLI in interactive mode for multiple queries with improved UI."""
     # Show the logo first
     show_logo()
     
@@ -1066,14 +1076,17 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
         border_style="blue"
     ))
     
-    # Create a status header
-    header = Table.grid(expand=True)
-    header.add_column(justify="center")
-    header.add_row("[info]Vertex AI RAG Engine CLI[/info]")
-    if use_reranking:
-        header.add_row("[green]Reranking: Enabled[/green]")
-    else:
-        header.add_row("[yellow]Reranking: Disabled[/yellow]")
+    # Create a more attractive status header with version and settings
+    header = Panel(
+        "[bold white]Vertex AI RAG Engine[/bold white]\n"
+        "[dim]Your intelligent document assistant[/dim]\n\n"
+        f"[{'green' if use_reranking else 'yellow'}]Reranking: {'Enabled' if use_reranking else 'Disabled'}[/{'green' if use_reranking else 'yellow'}]\n"
+        f"[{'green' if debug else 'dim'}]Debug Mode: {'Enabled' if debug else 'Disabled'}[/{'green' if debug else 'dim'}]\n"
+        f"[{'green' if verbose else 'dim'}]Verbose Mode: {'Enabled' if verbose else 'Disabled'}[/{'green' if verbose else 'dim'}]",
+        title="[bold blue]Zero-Day Scout v1.0[/bold blue]",
+        border_style="blue",
+        padding=(1, 2)
+    )
     console.print(header)
     
     # Enable reranking by default after showing benefits panel
@@ -1121,25 +1134,40 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
     
     while True:
         try:
-            # Create a bordered prompt for user input
-            console.print(Panel(
-                "[dim]Type your query or command (or 'exit' to quit)[/dim]",
-                title="[bold blue]Input[/bold blue]",
-                border_style="blue",
-                padding=(0, 1),
+            # Create a more visually appealing prompt for user input
+            prompt_panel = Panel(
+                "[bold cyan]What would you like to know about security vulnerabilities?[/bold cyan]\n"
+                "[dim]Type a question, command, or 'help' for assistance[/dim]",
+                title="[bold green]🔍 Ask Zero-Day Scout[/bold green]",
+                title_align="left",
+                border_style="green",
+                padding=(1, 2),
                 expand=False
-            ))
+            )
+            console.print("\n" + "─" * console.width)  # Add a separator line
+            console.print(prompt_panel)
             
+            # Add a decorated prompt character with cursor
+            console.print("[bold green]❯[/bold green] ", end="")
             query = Prompt.ask("")
             
-            # Echo the user's input with a border
-            if query.strip():
-                console.print(Panel(
-                    f"[bold cyan]{query}[/bold cyan]",
-                    border_style="cyan",
-                    padding=(0, 1),
-                    expand=False
-                ))
+            # Skip echoing if the query is empty
+            if not query.strip():
+                continue
+                
+            # Echo the user's input with a more elegant design
+            input_display = Panel(
+                f"[bold cyan]{query}[/bold cyan]",
+                title="[bold blue]Your Query[/bold blue]",
+                title_align="left",
+                border_style="blue",
+                padding=(1, 2),
+                expand=False
+            )
+            console.print(input_display)
+            
+            # Add a visual separator
+            console.print("[dim]" + "─" * console.width + "[/dim]")
             
             if query.lower() in ('exit', 'quit'):
                 break
@@ -1271,17 +1299,29 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
                 if parts[1].lower() == 'all':
                     # Ingest using all configured prefixes
                     console.print("[info]Ingesting documents from all configured prefixes...[/info]")
-                    ingest_documents(pipeline=pipeline)
+                    # Ask if user wants to recreate corpus first
+                    recreate = Prompt.ask(
+                        "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
+                    ).lower() in ('y', 'yes')
+                    ingest_documents(pipeline=pipeline, recreate_first=recreate)
                 elif parts[1].lower() == 'prefix' and len(parts) > 2:
                     # Ingest from specific prefix
                     prefix = parts[2]
                     console.print(f"[info]Ingesting documents from prefix '{prefix}'...[/info]")
-                    ingest_documents(pipeline=pipeline, prefix=prefix)
+                    # Ask if user wants to recreate corpus first
+                    recreate = Prompt.ask(
+                        "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
+                    ).lower() in ('y', 'yes')
+                    ingest_documents(pipeline=pipeline, prefix=prefix, recreate_first=recreate)
                 elif parts[1].startswith('gs://'):
                     # Ingest specific GCS paths
                     paths = [p for p in parts[1:] if p.startswith('gs://')]
                     console.print(f"[info]Ingesting {len(paths)} specific documents...[/info]")
-                    ingest_documents(pipeline=pipeline, specific_paths=paths)
+                    # Ask if user wants to recreate corpus first
+                    recreate = Prompt.ask(
+                        "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
+                    ).lower() in ('y', 'yes')
+                    ingest_documents(pipeline=pipeline, specific_paths=paths, recreate_first=recreate)
                 else:
                     console.print("[yellow]Invalid ingest command. Try 'ingest all', 'ingest prefix <prefix>', or 'ingest gs://<path>'[/yellow]")
             else:
@@ -1291,6 +1331,8 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
                     "  [bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
                     "  [bold]ingest prefix <prefix>[/bold] - Ingest documents from a specific prefix\n"
                     "  [bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n\n"
+                    "For each command, you'll be asked if you want to recreate the corpus first.\n"
+                    "Recreating the corpus deletes and rebuilds it completely.\n\n"
                     "Examples:\n"
                     "  ingest all\n"
                     "  ingest prefix uploaded_papers/\n"
@@ -1713,6 +1755,7 @@ def main():
     parser.add_argument("--ingest-all", action="store_true", help="Ingest documents from all configured prefixes")
     parser.add_argument("--ingest-prefix", help="Ingest documents from the specified prefix")
     parser.add_argument("--ingest-paths", nargs='+', help="Ingest specific document paths (space-separated list of gs:// URLs)")
+    parser.add_argument("--recreate-before-ingest", action="store_true", help="Recreate the corpus before ingestion")
     parser.add_argument("--recreate-corpus", action="store_true", help="Drop and recreate the RAG corpus")
     args = parser.parse_args()
     
@@ -1754,18 +1797,27 @@ def main():
         if args.ingest_all or args.ingest_prefix or args.ingest_paths:
             show_logo()
             
+            # Check if corpus should be recreated first
+            recreate_first = args.recreate_before_ingest
+            
             if args.ingest_paths:
                 # Ingest specific paths
                 console.print(f"[info]Ingesting {len(args.ingest_paths)} specific documents...[/info]")
-                success = ingest_documents(specific_paths=args.ingest_paths)
+                if recreate_first:
+                    console.print("[info]Will recreate corpus before ingestion[/info]")
+                success = ingest_documents(specific_paths=args.ingest_paths, recreate_first=recreate_first)
             elif args.ingest_prefix:
                 # Ingest from specific prefix
                 console.print(f"[info]Ingesting documents from prefix '{args.ingest_prefix}'...[/info]")
-                success = ingest_documents(prefix=args.ingest_prefix)
+                if recreate_first:
+                    console.print("[info]Will recreate corpus before ingestion[/info]")
+                success = ingest_documents(prefix=args.ingest_prefix, recreate_first=recreate_first)
             else:  # args.ingest_all
                 # Ingest using all configured prefixes
                 console.print("[info]Ingesting documents from all configured prefixes...[/info]")
-                success = ingest_documents()
+                if recreate_first:
+                    console.print("[info]Will recreate corpus before ingestion[/info]")
+                success = ingest_documents(recreate_first=recreate_first)
                 
             return 0 if success else 1
             
