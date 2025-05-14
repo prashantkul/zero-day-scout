@@ -80,20 +80,23 @@ class VertexRagPipeline:
         Returns:
             The created RAG corpus
         """
-        # Configure embedding model
-        embedding_model_config = rag.RagEmbeddingModelConfig(
-            vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                publisher_model=f"publishers/google/models/{self.embedding_model}"
+        # Create the RAG corpus with default embedding model
+        # The error suggests that custom publisher_model isn't supported yet
+        # Using the create_corpus without specifying an embedding model
+        try:
+            self.corpus = rag.create_corpus(
+                display_name=self.corpus_name,
             )
-        )
-
-        # Create the RAG corpus with RagManagedDb
-        self.corpus = rag.create_corpus(
-            display_name=self.corpus_name,
-            backend_config=rag.RagVectorDbConfig(
-                rag_embedding_model_config=embedding_model_config
-            ),
-        )
+        except Exception as e:
+            if "Publisher model is not allowed" in str(e):
+                print("Warning: Custom embedding model not supported. Trying with default embedding model.")
+                # Try with standard endpoint
+                self.corpus = rag.create_corpus(
+                    display_name=self.corpus_name
+                )
+            else:
+                # Re-raise if it's a different error
+                raise e
 
         print(f"Created RAG corpus: {self.corpus.name}")
         return self.corpus

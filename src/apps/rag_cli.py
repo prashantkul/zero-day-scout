@@ -791,6 +791,66 @@ def list_research_papers(pipeline=None, prefix=None, detailed=False):
             console.print(f"[error]Error listing research papers: {e}[/error]")
 
 
+def recreate_corpus(pipeline=None):
+    """
+    Drop and recreate the RAG corpus.
+    
+    Args:
+        pipeline: An existing VertexRagPipeline instance (optional)
+        
+    Returns:
+        Success status as boolean
+    """
+    # Create pipeline if not provided
+    if not pipeline:
+        with Status("[info]Initializing pipeline...[/info]", spinner="dots") as status:
+            try:
+                pipeline = VertexRagPipeline()
+            except Exception as e:
+                console.print(f"[error]Error initializing pipeline: {e}[/error]")
+                return False
+    
+    with Status("[info]Recreating corpus...[/info]", spinner="dots") as status:
+        try:
+            # Check if corpus exists
+            status.update("[info]Checking for existing corpus...[/info]")
+            try:
+                existing_corpus = pipeline.get_corpus()
+                corpus_name = existing_corpus.name if existing_corpus else None
+                
+                if corpus_name:
+                    # Confirm deletion
+                    if sys.stdin.isatty():
+                        confirm = Prompt.ask(
+                            f"[bold red]WARNING:[/bold red] This will delete the existing corpus '{pipeline.corpus_name}' and all its contents. Continue? (y/n)"
+                        ).lower()
+                        
+                        if confirm not in ['y', 'yes']:
+                            console.print("[yellow]Corpus recreation cancelled.[/yellow]")
+                            return False
+                    
+                    # Delete the corpus
+                    status.update(f"[info]Deleting corpus '{pipeline.corpus_name}'...[/info]")
+                    from vertexai import rag
+                    rag.delete_corpus(corpus_name)
+                    console.print(f"[green]Successfully deleted corpus '{pipeline.corpus_name}'[/green]")
+                
+            except Exception as e:
+                console.print(f"[yellow]Could not find or delete existing corpus: {e}[/yellow]")
+                console.print("[yellow]Proceeding with corpus creation...[/yellow]")
+            
+            # Create a new corpus
+            status.update("[info]Creating new corpus...[/info]")
+            corpus = pipeline.create_corpus()
+            console.print(f"[green]Successfully created new corpus: {corpus.name}[/green]")
+            
+            return True
+            
+        except Exception as e:
+            console.print(f"[error]Error recreating corpus: {e}[/error]")
+            return False
+
+
 def ingest_documents(pipeline=None, prefix=None, specific_paths=None):
     """
     Ingest documents into the RAG corpus.
@@ -1060,6 +1120,7 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
                 "[bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
                 "[bold]ingest prefix <prefix>[/bold] - Ingest documents from a specific prefix\n"
                 "[bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n"
+                "[bold]recreate corpus[/bold] - Drop and recreate the RAG corpus\n"
                 "\n[bold cyan]Settings:[/bold cyan]\n"
                 f"[bold]reranking[/bold] - {'Disable' if use_reranking else 'Enable'} reranking\n"
                 f"[bold]debug[/bold] - {'Disable' if debug else 'Enable'} debug mode\n"
@@ -1153,6 +1214,11 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
         # Handle ingested documents listing
         if query.lower() == 'ingested':
             list_ingested_documents(pipeline=pipeline)
+            continue
+            
+        # Handle corpus recreation command
+        if query.lower() == 'recreate corpus':
+            recreate_corpus(pipeline=pipeline)
             continue
             
         # Handle document ingestion commands
@@ -1605,6 +1671,7 @@ def main():
     parser.add_argument("--ingest-all", action="store_true", help="Ingest documents from all configured prefixes")
     parser.add_argument("--ingest-prefix", help="Ingest documents from the specified prefix")
     parser.add_argument("--ingest-paths", nargs='+', help="Ingest specific document paths (space-separated list of gs:// URLs)")
+    parser.add_argument("--recreate-corpus", action="store_true", help="Drop and recreate the RAG corpus")
     args = parser.parse_args()
     
     # Load environment variables
@@ -1633,6 +1700,13 @@ def main():
             show_logo()
             list_ingested_documents()
             return 0
+            
+        # Handle corpus recreation command
+        if args.recreate_corpus:
+            show_logo()
+            console.print("[info]Recreating RAG corpus...[/info]")
+            success = recreate_corpus()
+            return 0 if success else 1
             
         # Handle document ingestion commands
         if args.ingest_all or args.ingest_prefix or args.ingest_paths:
