@@ -202,11 +202,35 @@ class VertexRagPipeline:
         
         print(f"Ingesting {len(new_documents)} new documents (skipping {len(gcs_paths) - len(new_documents)} already ingested)")
         
-        # Import files to the RAG corpus
-        import_op = rag.import_files(
-            self.corpus.name,
-            new_documents
-        )
+        # Handle Vertex AI's limitation of 25 documents per batch
+        BATCH_SIZE = 25
+        import_ops = []
+        
+        if len(new_documents) > BATCH_SIZE:
+            print(f"Breaking ingestion into batches of {BATCH_SIZE} documents...")
+            
+            # Process in batches
+            for i in range(0, len(new_documents), BATCH_SIZE):
+                batch = new_documents[i:i+BATCH_SIZE]
+                print(f"Processing batch {i//BATCH_SIZE + 1}/{(len(new_documents) + BATCH_SIZE - 1)//BATCH_SIZE} ({len(batch)} documents)")
+                
+                # Import files to the RAG corpus
+                batch_op = rag.import_files(
+                    self.corpus.name,
+                    batch
+                )
+                
+                import_ops.append(batch_op)
+            
+            # Return the last operation for status checking and consistency
+            # (All operations are recorded in import_ops if detailed tracking is needed)
+            import_op = import_ops[-1] if import_ops else None
+        else:
+            # Small enough for a single batch
+            import_op = rag.import_files(
+                self.corpus.name,
+                new_documents
+            )
         
         # Update tracking
         self.ingested_documents.update(new_documents)
