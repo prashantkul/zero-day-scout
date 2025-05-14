@@ -36,7 +36,7 @@ from vertexai.generative_models import GenerativeModel
 
 # Custom theme for output
 custom_theme = Theme({
-    "query": "bold cyan",
+    "query": "bold bright_red",
     "response": "green",
     "suggestion": "yellow",
     "error": "bold red",
@@ -87,9 +87,20 @@ def suggest_query_improvements(query: str, model_name: Optional[str] = None) -> 
         return []
 
 
-def format_execution_time(start_time: float) -> str:
-    """Format execution time with proper units."""
-    execution_time = time.time() - start_time
+def format_execution_time(time_value: float) -> str:
+    """Format execution time with proper units.
+    
+    Args:
+        time_value: Either execution time in seconds, or a start time to calculate from
+    """
+    # Check if this is likely a timestamp (greater than 1 hour in seconds)
+    # If so, calculate the difference from current time
+    if time_value > 3600:
+        execution_time = time.time() - time_value
+    else:
+        # Already a duration
+        execution_time = time_value
+        
     if execution_time < 0.001:
         return f"{execution_time * 1000000:.2f} μs"
     elif execution_time < 1:
@@ -645,14 +656,14 @@ def create_context_panel(metrics: Dict[str, Any]) -> Optional[Panel]:
 def explain_reranking_benefits() -> Panel:
     """Create a panel explaining the benefits of reranking."""
     return Panel(
-        "Reranking can significantly improve your search results by:\n\n"
+        "Reranking significantly improves your search results by:\n\n"
         "1. [bold]Improving relevance[/bold] - Reordering results based on semantic meaning\n"
         "2. [bold]Reducing false positives[/bold] - Filtering out less relevant matches\n"
         "3. [bold]Handling nuanced queries[/bold] - Better understanding of complex questions\n"
         "4. [bold]Contextual understanding[/bold] - Considering the full context of your query\n\n"
-        "[yellow]Note:[/yellow] Reranking adds a small performance cost but often produces better answers.",
+        "[dim]Reranking adds a small performance cost but significantly improves answer quality.[/dim]",
         title="Benefits of Reranking",
-        border_style="yellow"
+        border_style="green"
     )
 
 
@@ -1089,12 +1100,11 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
     )
     console.print(header)
     
-    # Enable reranking by default after showing benefits panel
+    # Always enable reranking by default
     if not use_reranking:
-        console.print(explain_reranking_benefits())
-        # Enable reranking automatically
         use_reranking = True
-        console.print("[green]Reranking automatically enabled for better results![/green]")
+        console.print("[green]Reranking enabled for better results![/green]")
+        console.print(explain_reranking_benefits())
     
     # Display available commands at startup
     commands_panel = Panel(
@@ -1134,9 +1144,9 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
     
     while True:
         try:
-            # Create a more visually appealing prompt for user input
+            # Create a more visually appealing prompt for user input with integrated input area
             prompt_panel = Panel(
-                "[bold cyan]What would you like to know about security vulnerabilities?[/bold cyan]\n"
+                "[bold bright_red]What would you like to know about security vulnerabilities?[/bold bright_red]\n"
                 "[dim]Type a question, command, or 'help' for assistance[/dim]",
                 title="[bold green]🔍 Ask Zero-Day Scout[/bold green]",
                 title_align="left",
@@ -1147,24 +1157,37 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
             console.print("\n" + "─" * console.width)  # Add a separator line
             console.print(prompt_panel)
             
-            # Add a decorated prompt character with cursor
+            # Create a panel with an input style border
+            input_panel = Panel(
+                "  ", # Placeholder spaces to create height
+                title="[bold bright_red]Enter your query below[/bold bright_red]",
+                title_align="left",
+                border_style="red",
+                padding=(0, 1)
+            )
+            console.print(input_panel)
+            
+            # Position cursor for input - we'll place this right after the panel
             console.print("[bold green]❯[/bold green] ", end="")
+            
+            # Get user input
             query = Prompt.ask("")
             
-            # Skip echoing if the query is empty
+            # Display the query in a styled panel if it's not empty
+            if query.strip():
+                # Create a panel with the user's input inside
+                query_panel = Panel(
+                    f"[bold bright_red]{query}[/bold bright_red]",
+                    title="[bold bright_red]Your Query[/bold bright_red]",
+                    title_align="left",
+                    border_style="red",
+                    padding=(1, 2)
+                )
+                console.print(query_panel)
+            
+            # Skip processing if the query is empty
             if not query.strip():
                 continue
-                
-            # Echo the user's input with a more elegant design
-            input_display = Panel(
-                f"[bold cyan]{query}[/bold cyan]",
-                title="[bold blue]Your Query[/bold blue]",
-                title_align="left",
-                border_style="blue",
-                padding=(1, 2),
-                expand=False
-            )
-            console.print(input_display)
             
             # Add a visual separator
             console.print("[dim]" + "─" * console.width + "[/dim]")
@@ -1192,7 +1215,7 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
                 "[bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n"
                 "[bold]recreate corpus[/bold] - Drop and recreate the RAG corpus\n"
                 "\n[bold cyan]Settings:[/bold cyan]\n"
-                f"[bold]reranking[/bold] - {'Disable' if use_reranking else 'Enable'} reranking\n"
+                f"[bold]reranking[/bold] - {'Disable' if use_reranking else 'Enable'} reranking (reranking is enabled by default)\n"
                 f"[bold]debug[/bold] - {'Disable' if debug else 'Enable'} debug mode\n"
                 f"[bold]verbose[/bold] - {'Disable' if verbose else 'Enable'} verbose mode with context display\n"
                 "[bold]clear[/bold] - Clear the screen",
@@ -1299,29 +1322,21 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
                 if parts[1].lower() == 'all':
                     # Ingest using all configured prefixes
                     console.print("[info]Ingesting documents from all configured prefixes...[/info]")
-                    # Ask if user wants to recreate corpus first
+                    # Ask if user wants to recreate corpus first - only for "ingest all"
                     recreate = Prompt.ask(
                         "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
                     ).lower() in ('y', 'yes')
                     ingest_documents(pipeline=pipeline, recreate_first=recreate)
                 elif parts[1].lower() == 'prefix' and len(parts) > 2:
-                    # Ingest from specific prefix
+                    # Ingest from specific prefix - no corpus recreation
                     prefix = parts[2]
                     console.print(f"[info]Ingesting documents from prefix '{prefix}'...[/info]")
-                    # Ask if user wants to recreate corpus first
-                    recreate = Prompt.ask(
-                        "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
-                    ).lower() in ('y', 'yes')
-                    ingest_documents(pipeline=pipeline, prefix=prefix, recreate_first=recreate)
+                    ingest_documents(pipeline=pipeline, prefix=prefix)
                 elif parts[1].startswith('gs://'):
-                    # Ingest specific GCS paths
+                    # Ingest specific GCS paths - no corpus recreation
                     paths = [p for p in parts[1:] if p.startswith('gs://')]
                     console.print(f"[info]Ingesting {len(paths)} specific documents...[/info]")
-                    # Ask if user wants to recreate corpus first
-                    recreate = Prompt.ask(
-                        "[yellow]Do you want to recreate the corpus before ingestion?[/yellow] (y/n)"
-                    ).lower() in ('y', 'yes')
-                    ingest_documents(pipeline=pipeline, specific_paths=paths, recreate_first=recreate)
+                    ingest_documents(pipeline=pipeline, specific_paths=paths)
                 else:
                     console.print("[yellow]Invalid ingest command. Try 'ingest all', 'ingest prefix <prefix>', or 'ingest gs://<path>'[/yellow]")
             else:
@@ -1331,7 +1346,7 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
                     "  [bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
                     "  [bold]ingest prefix <prefix>[/bold] - Ingest documents from a specific prefix\n"
                     "  [bold]ingest gs://<path>[/bold] - Ingest specific document(s)\n\n"
-                    "For each command, you'll be asked if you want to recreate the corpus first.\n"
+                    "Note: Only with [bold]ingest all[/bold], you'll be asked if you want to recreate the corpus.\n"
                     "Recreating the corpus deletes and rebuilds it completely.\n\n"
                     "Examples:\n"
                     "  ingest all\n"
@@ -1395,7 +1410,7 @@ def interactive_mode(use_reranking: bool = True, debug: bool = False, verbose: b
                     console.print(f"[suggestion]{i}. {suggestion}[/suggestion]")
                     
                 # Allow user to select a suggestion
-                console.print("\n[suggestion]Enter a number to use a suggestion, or press Enter to continue[/suggestion]")
+                console.print("\n[suggestion]Enter a [bold]number[/bold] to use a suggestion, or press Enter to continue[/suggestion]")
                 try:
                     selection = Prompt.ask("")
                     
@@ -1743,7 +1758,9 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Zero-Day Scout RAG Query CLI")
     parser.add_argument("--query", "-q", help="Query to process")
-    parser.add_argument("--reranking", "-r", action="store_true", help="Use reranking")
+    parser.add_argument("--no-reranking", action="store_true", help="Disable reranking (not recommended)")
+    # For backward compatibility
+    parser.add_argument("--reranking", "-r", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--suggest", "-s", action="store_true", help="Suggest query improvements")
     parser.add_argument("--no-splash", action="store_true", help="Skip splash screen")
     parser.add_argument("--debug", "-d", action="store_true", help="Show debug information")
@@ -1797,24 +1814,22 @@ def main():
         if args.ingest_all or args.ingest_prefix or args.ingest_paths:
             show_logo()
             
-            # Check if corpus should be recreated first
-            recreate_first = args.recreate_before_ingest
+            # Recreation of corpus only applies to ingesting all documents
+            recreate_first = False
             
             if args.ingest_paths:
-                # Ingest specific paths
+                # Ingest specific paths - no corpus recreation
                 console.print(f"[info]Ingesting {len(args.ingest_paths)} specific documents...[/info]")
-                if recreate_first:
-                    console.print("[info]Will recreate corpus before ingestion[/info]")
-                success = ingest_documents(specific_paths=args.ingest_paths, recreate_first=recreate_first)
+                success = ingest_documents(specific_paths=args.ingest_paths)
             elif args.ingest_prefix:
-                # Ingest from specific prefix
+                # Ingest from specific prefix - no corpus recreation
                 console.print(f"[info]Ingesting documents from prefix '{args.ingest_prefix}'...[/info]")
-                if recreate_first:
-                    console.print("[info]Will recreate corpus before ingestion[/info]")
-                success = ingest_documents(prefix=args.ingest_prefix, recreate_first=recreate_first)
+                success = ingest_documents(prefix=args.ingest_prefix)
             else:  # args.ingest_all
-                # Ingest using all configured prefixes
+                # Ingest using all configured prefixes - optional corpus recreation
                 console.print("[info]Ingesting documents from all configured prefixes...[/info]")
+                # Only for ingest-all, check if recreate is requested
+                recreate_first = args.recreate_before_ingest
                 if recreate_first:
                     console.print("[info]Will recreate corpus before ingestion[/info]")
                 success = ingest_documents(recreate_first=recreate_first)
@@ -1825,17 +1840,22 @@ def main():
             # Single query mode - show logo
             show_logo()
             
-            console.print(f"[query]Query: {args.query}[/query]")
+            console.print(f"[bold bright_red]Query: {args.query}[/bold bright_red]")
             
-            # Enable reranking by default after showing the benefits
-            use_reranking = args.reranking
-            if not use_reranking and sys.stdin.isatty():  # Only show if running in interactive terminal
-                console.print(explain_reranking_benefits())
+            # Always enable reranking by default unless explicitly disabled
+            # Handle both the new --no-reranking flag and the legacy --reranking flag
+            use_reranking = True
+            if args.no_reranking:
+                use_reranking = False
+            elif hasattr(args, 'reranking') and args.reranking:
                 use_reranking = True
-                console.print("[green]Reranking automatically enabled for better results![/green]")
-            elif not use_reranking:
-                # Non-interactive mode with no reranking flag
-                console.print("[yellow]Running in non-interactive mode, continuing without reranking[/yellow]")
+                
+            if use_reranking:
+                console.print("[green]Reranking enabled for better results![/green]")
+                if sys.stdin.isatty():  # Only show benefits if running in interactive terminal
+                    console.print(explain_reranking_benefits())
+            else:
+                console.print("[yellow]Reranking disabled (not recommended)[/yellow]")
             
             if args.suggest:
                 with Status("[suggestion]Generating query suggestions...[/suggestion]", spinner="dots") as status:
@@ -1849,7 +1869,7 @@ def main():
                     )
                     console.print(suggestion_panel)
                 
-                    console.print("\n[suggestion]Enter a number to use a suggestion, or press Enter to use original query[/suggestion]")
+                    console.print("\n[suggestion]Enter a [bold]number[/bold] to use a suggestion, or press Enter to use original query[/suggestion]")
                     try:
                         selection = Prompt.ask("")
                         
@@ -1916,7 +1936,9 @@ def main():
         else:
             # Interactive mode - will handle its own KeyboardInterrupt
             try:
-                interactive_mode(args.reranking, args.debug, args.verbose)
+                # Determine reranking setting (enabled by default unless explicitly disabled)
+                use_reranking = not args.no_reranking
+                interactive_mode(use_reranking, args.debug, args.verbose)
             except KeyboardInterrupt:
                 graceful_exit()
         
