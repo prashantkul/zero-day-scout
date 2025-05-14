@@ -1076,13 +1076,37 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
         header.add_row("[yellow]Reranking: Disabled[/yellow]")
     console.print(header)
     
-    # Offer reranking if not enabled
+    # Enable reranking by default after showing benefits panel
     if not use_reranking:
         console.print(explain_reranking_benefits())
-        console.print("\n[suggestion]Would you like to enable reranking for better results? (y/n)[/suggestion]")
-        if Prompt.ask("").lower() in ('y', 'yes'):
-            use_reranking = True
-            console.print("[green]Reranking enabled![/green]")
+        # Enable reranking automatically
+        use_reranking = True
+        console.print("[green]Reranking automatically enabled for better results![/green]")
+    
+    # Display available commands at startup
+    commands_panel = Panel(
+        "[bold]Available Commands:[/bold]\n\n"
+        "[bold cyan]Queries:[/bold cyan]\n"
+        "• Enter any question to run a RAG query\n"
+        "• [bold]suggestions[/bold] - Get query improvement suggestions\n"
+        "• [bold]history[/bold] - Show previous queries\n\n"
+        "[bold cyan]Document Management:[/bold cyan]\n"
+        "• [bold]papers[/bold] - List research papers in GCS\n"
+        "• [bold]ingested[/bold] - List ingested documents\n"
+        "• [bold]ingest all[/bold] - Ingest documents from all configured prefixes\n"
+        "• [bold]recreate corpus[/bold] - Drop and recreate the RAG corpus\n\n"
+        "[bold cyan]Settings:[/bold cyan]\n"
+        "• [bold]reranking[/bold] - Toggle reranking on/off\n"
+        "• [bold]debug[/bold] - Toggle debug mode\n"
+        "• [bold]verbose[/bold] - Toggle verbose mode\n"
+        "• [bold]clear[/bold] - Clear the screen\n"
+        "• [bold]help[/bold] - Show all commands\n"
+        "• [bold]exit[/bold] or [bold]quit[/bold] - Exit the application",
+        title="[bold]Zero-Day Scout CLI[/bold]",
+        border_style="green",
+        padding=(1, 2)
+    )
+    console.print(commands_panel)
     
     # Command history
     history = []
@@ -1097,7 +1121,25 @@ def interactive_mode(use_reranking: bool = False, debug: bool = False, verbose: 
     
     while True:
         try:
-            query = Prompt.ask("\n[query]Enter your query or command[/query]")
+            # Create a bordered prompt for user input
+            console.print(Panel(
+                "[dim]Type your query or command (or 'exit' to quit)[/dim]",
+                title="[bold blue]Input[/bold blue]",
+                border_style="blue",
+                padding=(0, 1),
+                expand=False
+            ))
+            
+            query = Prompt.ask("")
+            
+            # Echo the user's input with a border
+            if query.strip():
+                console.print(Panel(
+                    f"[bold cyan]{query}[/bold cyan]",
+                    border_style="cyan",
+                    padding=(0, 1),
+                    expand=False
+                ))
             
             if query.lower() in ('exit', 'quit'):
                 break
@@ -1733,20 +1775,15 @@ def main():
             
             console.print(f"[query]Query: {args.query}[/query]")
             
-            # Check if reranking should be offered
+            # Enable reranking by default after showing the benefits
             use_reranking = args.reranking
-            if not use_reranking and sys.stdin.isatty():  # Only prompt if running in interactive terminal
+            if not use_reranking and sys.stdin.isatty():  # Only show if running in interactive terminal
                 console.print(explain_reranking_benefits())
-                console.print("\n[suggestion]Would you like to enable reranking for better results? (y/n)[/suggestion]")
-                try:
-                    if Prompt.ask("").lower() in ('y', 'yes'):
-                        use_reranking = True
-                        console.print("[green]Reranking enabled![/green]")
-                except KeyboardInterrupt:
-                    graceful_exit()
-                except EOFError:
-                    # Handle non-interactive mode
-                    console.print("[yellow]Running in non-interactive mode, continuing without reranking[/yellow]")
+                use_reranking = True
+                console.print("[green]Reranking automatically enabled for better results![/green]")
+            elif not use_reranking:
+                # Non-interactive mode with no reranking flag
+                console.print("[yellow]Running in non-interactive mode, continuing without reranking[/yellow]")
             
             if args.suggest:
                 with Status("[suggestion]Generating query suggestions...[/suggestion]", spinner="dots") as status:
