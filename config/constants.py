@@ -15,6 +15,14 @@ DEFAULT_GENERATIVE_MODEL = "gemini-2.5-flash-preview-04-17"
 DEFAULT_TOP_K = 5
 DEFAULT_DISTANCE_THRESHOLD = 0.6
 DEFAULT_TEMPERATURE = 0.2
+DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-preview-04-17"  # Using the same model as generative by default
+DEFAULT_USE_RERANKING = False  # Disabled by default until full Discovery Engine permissions are set up
 
 # GCS settings
 DEFAULT_GCS_BUCKET = "rag-research-papers"  # Set during runtime
+DEFAULT_DOCUMENT_PREFIXES = [
+    "arxiv_security_papers/",
+    "uploaded_papers/",
+]  # Default document prefixes to scan
+DEFAULT_USE_CLOUD_TRACKING = True  # Whether to store ingestion tracking in cloud
+DEFAULT_CLOUD_TRACKING_PATH = "tracking/ingested_docs.json"  # Path to tracking file in GCS bucket
