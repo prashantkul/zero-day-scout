@@ -18,11 +18,16 @@ DEFAULT_TEMPERATURE = 0.2
 DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-preview-04-17"  # Using the same model as generative by default
 DEFAULT_USE_RERANKING = False  # Disabled by default until full Discovery Engine permissions are set up
 
+# Document chunking settings
+DEFAULT_CHUNK_SIZE = 512  # Default size of each document chunk in tokens
+DEFAULT_CHUNK_OVERLAP = 100  # Default overlap between chunks in tokens
+
 # GCS settings
 DEFAULT_GCS_BUCKET = "rag-research-papers"  # Set during runtime
 DEFAULT_DOCUMENT_PREFIXES = [
     "arxiv_security_papers/",
     "uploaded_papers/",
+    "cves/",
 ]  # Default document prefixes to scan
 DEFAULT_USE_CLOUD_TRACKING = True  # Whether to store ingestion tracking in cloud
 DEFAULT_CLOUD_TRACKING_PATH = "tracking/ingested_docs.json"  # Path to tracking file in GCS bucket

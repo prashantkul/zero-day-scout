@@ -21,6 +21,8 @@ from config.constants import (
     DEFAULT_DOCUMENT_PREFIXES,
     DEFAULT_USE_CLOUD_TRACKING,
     DEFAULT_CLOUD_TRACKING_PATH,
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_CHUNK_OVERLAP,
 )
 
 
@@ -71,6 +73,10 @@ class ConfigManager:
             "document_prefixes": os.getenv("DOCUMENT_PREFIXES", ",".join(DEFAULT_DOCUMENT_PREFIXES)).split(","),
             "use_cloud_tracking": os.getenv("USE_CLOUD_TRACKING", str(DEFAULT_USE_CLOUD_TRACKING)).lower() == "true",
             "cloud_tracking_path": os.getenv("CLOUD_TRACKING_PATH", DEFAULT_CLOUD_TRACKING_PATH),
+            
+            # Document chunking settings
+            "chunk_size": int(os.getenv("RAG_CHUNK_SIZE", DEFAULT_CHUNK_SIZE)),
+            "chunk_overlap": int(os.getenv("RAG_CHUNK_OVERLAP", DEFAULT_CHUNK_OVERLAP)),
         }
         
         # Validate required settings

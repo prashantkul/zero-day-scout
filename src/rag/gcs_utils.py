@@ -170,3 +170,22 @@ class GcsManager:
         
         # Upload JSON
         blob.upload_from_string(content, content_type='application/json')
+        
+    def file_exists(self, gcs_path: str) -> bool:
+        """
+        Check if a file exists in GCS.
+        
+        Args:
+            gcs_path: Path to the file in GCS (e.g., 'documents/file.txt')
+            
+        Returns:
+            True if the file exists, False otherwise
+        """
+        # Get bucket
+        bucket = self.client.get_bucket(self.bucket_name)
+        
+        # Get blob
+        blob = bucket.blob(gcs_path)
+        
+        # Check if file exists
+        return blob.exists()
