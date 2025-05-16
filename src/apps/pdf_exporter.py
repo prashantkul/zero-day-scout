@@ -241,7 +241,7 @@ def export_to_pdf(
             name='BriefDisclaimer',
             parent=styles['Italic'],
             alignment=1,  # Center alignment
-            textColor=colors.dark_red,
+            textColor=colors.red,  # Using standard red instead of dark_red
             fontSize=10,
             spaceAfter=12
         )
@@ -326,7 +326,7 @@ def export_to_pdf(
         disclaimer_style = ParagraphStyle(
             name='Disclaimer',
             parent=styles['Normal'],
-            textColor=colors.dark_red,
+            textColor=colors.red,  # Using standard red instead of dark_red
             fontSize=9,
             spaceAfter=12,
             borderWidth=1,
