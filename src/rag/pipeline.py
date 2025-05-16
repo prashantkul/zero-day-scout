@@ -5,6 +5,7 @@ using Google Cloud Vertex AI RAG Engine with RagManagedDb.
 
 import os
 import json
+import logging
 from typing import List, Dict, Any, Optional, Union, Set, Tuple
 from pathlib import Path
 
@@ -13,6 +14,9 @@ from vertexai import rag
 from vertexai.generative_models import GenerativeModel
 
 from config.config_manager import get_config
+
+# Configure module logger
+logger = logging.getLogger(__name__)
 
 
 class VertexRagPipeline:
@@ -48,6 +52,9 @@ class VertexRagPipeline:
         self.corpus = None
         self.cloud_tracking_path = None
         self.cloud_metadata_path = None
+        
+        # Initialize last_contexts to store retrieved contexts for display
+        self.last_contexts = []
         
         # Load configuration
         config = get_config()
@@ -112,7 +119,8 @@ class VertexRagPipeline:
             )
         except Exception as e:
             if "Publisher model is not allowed" in str(e):
-                print("Warning: Custom embedding model not supported. Trying with default embedding model.")
+                logger = logging.getLogger(__name__)
+                logger.debug("Custom embedding model not supported. Trying with default embedding model.")
                 # Try with standard endpoint
                 self.corpus = rag.create_corpus(
                     display_name=self.corpus_name
@@ -121,8 +129,28 @@ class VertexRagPipeline:
                 # Re-raise if it's a different error
                 raise e
 
-        print(f"Created RAG corpus: {self.corpus.name}")
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Created RAG corpus: {self.corpus.name}")
         return self.corpus
+
+    def print_ingested_documents(self) -> None:
+        """
+        Print the currently tracked ingested documents in a readable format.
+        """
+        if not self.ingested_documents:
+            print("No documents have been ingested yet.")
+            return
+            
+        print(f"\n===== Ingested Documents ({len(self.ingested_documents)}) =====")
+        # Sort for consistent display
+        sorted_docs = sorted(self.ingested_documents)
+        for i, doc in enumerate(sorted_docs, 1):
+            # Extract just the filename from the path for cleaner display
+            filename = doc.split('/')[-1] if '/' in doc else doc
+            print(f"{i}. {filename}")
+            # Print the full path in a more subtle way
+            print(f"   → {doc}")
+        print("=" * 50)
 
     def _load_ingested_documents(self) -> Set[str]:
         """
@@ -426,7 +454,7 @@ class VertexRagPipeline:
                     cloud_metadata = gcs_manager.read_json(self.cloud_metadata_path)
 
                     if cloud_metadata:
-                        print(f"Loaded metadata for {len(cloud_metadata)} documents from cloud storage")
+                        #print(f"Loaded metadata for {len(cloud_metadata)} documents from cloud storage")
                         self.document_metadata = cloud_metadata
                         return
                 except Exception as cloud_e:
@@ -438,7 +466,7 @@ class VertexRagPipeline:
                 with open(self.metadata_file, 'r') as f:
                     local_metadata = json.load(f)
                     self.document_metadata = local_metadata
-                    print(f"Loaded metadata for {len(local_metadata)} documents from local file")
+                    #print(f"Loaded metadata for {len(local_metadata)} documents from local file")
                     return
 
         except Exception as e:
@@ -1017,7 +1045,7 @@ class VertexRagPipeline:
 
         # Add reranking if enabled
         if use_reranking and reranker_model:
-            print(f"Using reranking with model: {reranker_model}")
+            #print(f"Using reranking with model: {reranker_model}")
             try:
                 retrieval_config_args["ranking"] = rag.Ranking(
                     rank_service=rag.RankService(
@@ -1055,13 +1083,13 @@ class VertexRagPipeline:
 
         try:
             # Print debug info about the response
-            print(f"Response type: {type(response).__name__}")
+            #print(f"Response type: {type(response).__name__}")
             # print(f"Response attributes: {dir(response)}")
 
             # Handle RagContexts specifically - it may have a different structure
             if hasattr(response, 'contexts'):
                 contexts_obj = response.contexts
-                print(f"Contexts type: {type(contexts_obj).__name__}")
+                #print(f"Contexts type: {type(contexts_obj).__name__}")
                 # print(f"Contexts attributes: {dir(contexts_obj)}")
 
                 # Try different ways to access the contexts
@@ -1268,7 +1296,8 @@ class VertexRagPipeline:
         self.get_corpus()
 
         try:
-            print(f"Using direct RAG integration for query: {query}")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Using direct RAG integration for query: {query}")
 
             # In Vertex AI v1.92.0, we need to use a different approach for RAG integration
             # First, we get the contexts directly
@@ -1279,8 +1308,35 @@ class VertexRagPipeline:
                 use_reranking=use_reranking,
                 reranker_model=reranker_model
             )
-
-            print(f"Retrieved {len(retrievals)} contexts for direct RAG integration")
+            
+            # Store the contexts for display in the CLI without verbose logging
+            self.last_contexts = retrievals.copy() if isinstance(retrievals, list) else list(retrievals) if retrievals else []
+            
+            # Only log the context count in debug mode
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Retrieved {len(self.last_contexts)} contexts for RAG")
+                if self.last_contexts:
+                    # Log detailed information in debug mode only
+                    first_ctx = self.last_contexts[0]
+                    logger.debug(f"Context type: {type(first_ctx).__name__}")
+                    
+                    has_uri = hasattr(first_ctx, 'uri')
+                    has_text = hasattr(first_ctx, 'text')
+                    has_score = hasattr(first_ctx, 'relevance_score') or hasattr(first_ctx, 'score')
+                    logger.debug(f"Context has URI: {has_uri}, Text: {has_text}, Score: {has_score}")
+                    
+                    # Sample snippet in debug mode only
+                    if has_text:
+                        sample_text = first_ctx.text[:100] + "..." if len(first_ctx.text) > 100 else first_ctx.text
+                        logger.debug(f"Sample text from first context: \"{sample_text}\"")
+                    elif hasattr(first_ctx, 'chunk') and hasattr(first_ctx.chunk, 'data'):
+                        sample_text = first_ctx.chunk.data[:100] + "..." if len(first_ctx.chunk.data) > 100 else first_ctx.chunk.data
+                        logger.debug(f"Sample text from first context chunk: \"{sample_text}\"")
+                    elif hasattr(first_ctx, 'content'):
+                        sample_text = first_ctx.content[:100] + "..." if len(first_ctx.content) > 100 else first_ctx.content
+                        logger.debug(f"Sample text from first context content: \"{sample_text}\"")
+            
+            # No print to stdout during normal operation
 
             if not retrievals:
                 return "No relevant information found."
@@ -1323,12 +1379,13 @@ class VertexRagPipeline:
                 generation_config={"temperature": temperature} if temperature is not None else None
             )
 
-            print("Successfully generated response using direct RAG integration")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Successfully generated response using direct RAG integration")
             return response.text
 
         except Exception as e:
-            print(f"Error in direct RAG integration: {e}")
-            print("Falling back to manual RAG implementation...")
+            logger.error(f"Error in direct RAG integration: {e}")
+            logger.warning("Falling back to manual RAG implementation...")
 
             # Fall back to the standard two-step approach
             return self.generate_answer(

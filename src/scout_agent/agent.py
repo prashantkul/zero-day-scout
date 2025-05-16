@@ -74,7 +74,7 @@ class OrchestratorAgent:
         # For ADK tools compatibility, define the root agent
         self.root_agent = self.orchestrator
 
-    async def process_query(self, query: str) -> str:
+    async def process_query(self, query: str) -> dict:
         """
         Process a user query through the complete agent workflow.
         
@@ -82,7 +82,7 @@ class OrchestratorAgent:
             query: The security query from the user
             
         Returns:
-            The final synthesized response
+            Dictionary containing the final response and intermediate outputs
         """
         # Create a session for processing the query
         session_service = InMemorySessionService()
@@ -107,12 +107,42 @@ class OrchestratorAgent:
         content = UserContent(parts=[Part(text=query)])
 
         logger.info(f"Processing query with sequential agent: {query}")
-
+        
+        # Store the final response to return
+        final_response = ""
+        
+        # Track the agent outputs for potential use in the CLI
+        agent_outputs = {
+            "security_planner": {"output": "", "role": "planner"},
+            "security_researcher": {"output": "", "role": "researcher"},
+            "security_analyst": {"output": "", "role": "analyst"},
+            "security_orchestrator": {"output": "", "role": "orchestrator"}
+        }
+        
+        # Process query through the sequential agent
         for event in runner.run(
             user_id=session.user_id, session_id=session.id, new_message=content
         ):
-            for part in event.content.parts:
-                print(part.text)
+            # Skip events without content parts
+            if not hasattr(event, 'content') or not event.content or not event.content.parts:
+                continue
+                
+            # Get the text from the first part
+            text = event.content.parts[0].text
+            
+            # Store the output from each agent
+            if hasattr(event, 'author') and event.author in agent_outputs:
+                logger.info(f"Received output from agent: {event.author}")
+                agent_outputs[event.author]["output"] = text
+            
+            # Store the final response (last output received)
+            final_response = text
+        
+        # Return a dictionary with all agent outputs and the final response
+        return {
+            "final_response": final_response,
+            "agent_outputs": agent_outputs
+        }
 
 
 class PlannerAgent:
