@@ -35,8 +35,22 @@ except ImportError:
     print("This utility requires the 'rich' library. Install with: pip install rich")
     sys.exit(1)
 
-from src.rag.pipeline import VertexRagPipeline
-from config.config_manager import get_config
+# Handle import paths whether running as a script or from another module
+try:
+    # Try direct import first (when run as a script directly)
+    import sys
+    import os
+    # Add project root to path if not already there
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    from src.rag.pipeline import VertexRagPipeline
+    from config.config_manager import get_config
+except ImportError:
+    # Fallback for when run as a module (like from zero_day_hq.py)
+    from src.rag.pipeline import VertexRagPipeline
+    from config.config_manager import get_config
 from vertexai.generative_models import GenerativeModel
 
 # Custom theme for output

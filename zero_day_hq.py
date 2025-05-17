@@ -16,7 +16,8 @@ import signal
 from pathlib import Path
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+project_root = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, project_root)
 
 # Try to import rich for improved interface
 try:
@@ -148,8 +149,12 @@ def launch_rag_cli(args=None):
             console.print("[info]Launching RAG System...[/info]")
         else:
             print("Launching RAG System...")
+        
+        # Set environment variables to ensure proper Python path
+        env = os.environ.copy()
+        env["PYTHONPATH"] = project_root
             
-        subprocess.run(cmd)
+        subprocess.run(cmd, env=env)
     except Exception as e:
         if rich_available:
             console.print(f"[error]Error launching RAG CLI: {e}[/error]")
@@ -170,8 +175,12 @@ def launch_scout_cli(args=None):
             console.print("[info]Launching Agentic RAG System...[/info]")
         else:
             print("Launching Agentic RAG System...")
+        
+        # Set environment variables to ensure proper Python path
+        env = os.environ.copy()
+        env["PYTHONPATH"] = project_root
             
-        subprocess.run(cmd)
+        subprocess.run(cmd, env=env)
     except Exception as e:
         if rich_available:
             console.print(f"[error]Error launching Scout CLI: {e}[/error]")
