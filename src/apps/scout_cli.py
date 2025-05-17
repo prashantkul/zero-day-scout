@@ -20,9 +20,10 @@ import datetime
 from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 
-# Add the project root to the path if running directly
-if __name__ == "__main__":
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+# Handle import paths whether running as a script or from another module
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Rich library for beautiful terminal output
 try:
@@ -45,13 +46,13 @@ from src.scout_agent.agent import OrchestratorAgent
 from config.config_manager import get_config
 from vertexai.generative_models import GenerativeModel
 
-# Import PDF utilities
+# Import Markdown utilities
 try:
-    from src.apps.pdf_utils import export_results_to_pdf
-    pdf_export_supported = True
+    from src.apps.markdown_utils import export_results_to_markdown
+    markdown_export_supported = True
 except ImportError:
-    pdf_export_supported = False
-    print("PDF export module not found. This feature will be disabled.")
+    markdown_export_supported = False
+    print("Markdown export module not found. This feature will be disabled.")
 
 # Custom theme for output
 custom_theme = Theme(
@@ -75,9 +76,9 @@ custom_theme = Theme(
         "rag.match": "bright_cyan",
         "rag.score": "bright_magenta",
         "rag.snippet": "bright_white",
-        "pdf.success": "bright_green",
-        "pdf.path": "bright_white",
-        "pdf.error": "bright_red"
+        "md.success": "bright_green",
+        "md.path": "bright_white",
+        "md.error": "bright_red"
     }
 )
 
@@ -174,8 +175,8 @@ def display_commands(detailed=False):
         commands_table.add_row("/agents", "Show agent structure and workflow information")
         commands_table.add_row("/rag", "Toggle RAG information display")
         commands_table.add_row("/plan", "Toggle execution plan display")
-        commands_table.add_row("/export", "Export current results to PDF")
-        commands_table.add_row("/export auto", "Toggle automatic PDF export")
+        commands_table.add_row("/export", "Export current results to Markdown")
+        commands_table.add_row("/export auto", "Toggle automatic Markdown export")
         commands_table.add_row("/clear", "Clear the screen")
         
         console.print(Panel(commands_table, title="Available Commands", border_style="blue"))
@@ -567,7 +568,7 @@ async def interactive_mode(
     verbose: bool = False, 
     show_rag: bool = True,
     show_plan: bool = True,
-    auto_export_pdf: bool = False
+    auto_export_md: bool = False
 ):
     """
     Run the agent in interactive mode.
@@ -620,7 +621,7 @@ async def interactive_mode(
     last_query = None
     show_rag_info = show_rag  # Flag to control RAG information display
     show_execution_plan = show_plan  # Flag to control execution plan display
-    auto_export = auto_export_pdf  # Flag to control auto PDF export
+    auto_export = auto_export_md  # Flag to control auto Markdown export
     
     while True:
         try:
@@ -762,7 +763,7 @@ async def interactive_mode(
                     if "auto" in cmd:
                         auto_export = not auto_export
                         status_message = "enabled" if auto_export else "disabled"
-                        console.print(f"[info]Automatic PDF export {status_message}[/info]")
+                        console.print(f"[info]Automatic Markdown export {status_message}[/info]")
                         continue
                         
                     if last_query is None:
@@ -774,9 +775,9 @@ async def interactive_mode(
                         console.print("[error]No results available to export.[/error]")
                         continue
                     
-                    # Check if PDF export is supported
-                    if not pdf_export_supported:
-                        console.print("[pdf.error]PDF export not available. Install reportlab package to enable this feature.[/pdf.error]")
+                    # Check if Markdown export is supported
+                    if not markdown_export_supported:
+                        console.print("[md.error]Markdown export not available.[/md.error]")
                         continue
                         
                     # Include sources by default, unless explicitly disabled
@@ -784,9 +785,9 @@ async def interactive_mode(
                     if "no-sources" in cmd or "nosources" in cmd:
                         include_sources = False
                     
-                    # Export to PDF
-                    from src.apps.pdf_utils import export_results_to_pdf
-                    export_results_to_pdf(
+                    # Export to Markdown
+                    from src.apps.markdown_utils import export_results_to_markdown
+                    export_results_to_markdown(
                         query=last_query,
                         final_response=final_response,
                         agent_outputs=agent_outputs,
@@ -869,11 +870,11 @@ async def interactive_mode(
                 # Suggest improvements
                 console.print("\n[info]Type /suggest to get query improvement suggestions[/info]")
                 
-                # Auto-export to PDF if enabled
-                if auto_export and pdf_export_supported:
-                    console.print("\n[info]Auto-exporting results to PDF...[/info]")
-                    from src.apps.pdf_utils import export_results_to_pdf
-                    export_results_to_pdf(
+                # Auto-export to Markdown if enabled
+                if auto_export and markdown_export_supported:
+                    console.print("\n[info]Auto-exporting results to Markdown...[/info]")
+                    from src.apps.markdown_utils import export_results_to_markdown
+                    export_results_to_markdown(
                         query=query_to_process,
                         final_response=final_response,
                         agent_outputs=agent_outputs,
@@ -972,15 +973,15 @@ async def main():
     )
     
     parser.add_argument(
-        "--export-pdf", 
+        "--export-md", 
         action="store_true", 
-        help="Automatically export results to PDF"
+        help="Automatically export results to Markdown"
     )
     
     parser.add_argument(
         "--no-sources", 
         action="store_true", 
-        help="Exclude research sources from PDF export"
+        help="Exclude research sources from Markdown export"
     )
     
     args = parser.parse_args()
@@ -1090,11 +1091,11 @@ async def main():
                     formatted_md = await format_output_markdown(final_response, "analyst")
                     console.print(Panel(Markdown(formatted_md), title="[bold]Final Analysis[/bold]", border_style="green", expand=False))
                     
-                    # Export to PDF if requested
-                    if args.export_pdf and pdf_export_supported:
-                        console.print("\n[info]Exporting results to PDF...[/info]")
-                        from src.apps.pdf_utils import export_results_to_pdf
-                        export_results_to_pdf(
+                    # Export to Markdown if requested
+                    if args.export_md and markdown_export_supported:
+                        console.print("\n[info]Exporting results to Markdown...[/info]")
+                        from src.apps.markdown_utils import export_results_to_markdown
+                        export_results_to_markdown(
                             query=query_to_process,
                             final_response=final_response,
                             agent_outputs=agent_outputs,
@@ -1115,7 +1116,7 @@ async def main():
                 args.verbose or args.debug, 
                 show_rag=not args.no_rag,
                 show_plan=not args.no_plan,
-                auto_export_pdf=args.export_pdf
+                auto_export_md=args.export_md
             )
             
     except KeyboardInterrupt:
