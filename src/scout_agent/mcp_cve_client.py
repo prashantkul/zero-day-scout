@@ -16,18 +16,18 @@ logger = logging.getLogger(__name__)
 
 class McpCveClient:
     """
-    Client for interacting with the CVE-Search MCP server.
+    Client for interacting with CVE-Search MCP server.
     
-    This class handles the communication with the MCP server, making requests
-    and formatting responses for use by the agent tools.
+    This class handles communication with the local MCP server for CVE data,
+    making requests and formatting responses for use by the agent tools.
     """
     
-    def __init__(self, base_url: str = "http://localhost:3000"):
+    def __init__(self, base_url: str = "http://localhost:8000"):
         """
         Initialize the MCP CVE client.
         
         Args:
-            base_url: The base URL of the MCP server (default: http://localhost:3000)
+            base_url: The base URL of the MCP server (default: http://localhost:8000)
         """
         self.base_url = base_url
         self.timeout = 10.0  # Default timeout in seconds
@@ -78,7 +78,7 @@ class McpCveClient:
             List of vendor names
         """
         try:
-            data = self._make_request("api/browse/vendors")
+            data = self._make_request("vul_vendors")
             if isinstance(data, list):
                 return data
             else:
@@ -99,7 +99,7 @@ class McpCveClient:
             List of product names
         """
         try:
-            data = self._make_request(f"api/browse/products/{vendor}")
+            data = self._make_request(f"vul_vendor_products", {"vendor": vendor})
             if isinstance(data, list):
                 return data
             else:
@@ -124,7 +124,7 @@ class McpCveClient:
             if not cve_id.startswith("CVE-"):
                 cve_id = f"CVE-{cve_id}"
             
-            data = self._make_request(f"api/cve/{cve_id}")
+            data = self._make_request(f"vul_cve_search", {"cve_id": cve_id})
             return data
         except Exception as e:
             logger.error(f"Failed to get CVE '{cve_id}': {e}")
@@ -157,15 +157,25 @@ class McpCveClient:
             if limit:
                 params["limit"] = str(limit)
             
-            # Determine the endpoint based on search criteria
+            # Determine the endpoint and parameters based on search criteria
             if vendor and product:
-                endpoint = f"api/search/vendor_product/{vendor}/{product}"
+                endpoint = "vul_vendor_product_cve"
+                params["vendor"] = vendor
+                params["product"] = product
             elif vendor:
-                endpoint = f"api/search/vendor/{vendor}"
-            elif cwe:
-                endpoint = f"api/search/cwe/{cwe}"
+                endpoint = "vul_vendor_products"
+                params["vendor"] = vendor
             else:
-                endpoint = "api/search"
+                # For keyword search, we'll fall back to the public API
+                # since the MCP server doesn't directly expose a keyword search endpoint
+                fallback_url = "https://cve.circl.lu/api"
+                logger.info(f"Using fallback API for keyword search: {fallback_url}")
+                temp_client = McpCveClient(base_url=fallback_url)
+                if cwe:
+                    endpoint = f"search/cwe/{cwe}"
+                else:
+                    endpoint = "search"
+                return temp_client._make_request(endpoint, params)
             
             data = self._make_request(endpoint, params)
             
@@ -192,7 +202,7 @@ class McpCveClient:
             List of recent CVE entries
         """
         try:
-            data = self._make_request("api/recent", {"limit": str(limit)})
+            data = self._make_request("vul_last_cves")
             if isinstance(data, list):
                 return data
             elif isinstance(data, dict) and "results" in data:
