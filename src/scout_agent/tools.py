@@ -15,6 +15,7 @@ import inspect
 from google.adk.tools import FunctionTool
 
 from src.rag.pipeline import VertexRagPipeline
+from src.scout_agent.mcp_cve_client import McpCveClient
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +207,7 @@ class VulnerabilityAnalysisTool(FunctionTool):
     
     This tool uses specialized models to identify potential security
     vulnerabilities in the provided text and assess their severity.
+    It can also suggest relevant CVEs that match the identified issues.
     """
     
     def __init__(self):
@@ -270,16 +272,23 @@ class CveLookupTool(FunctionTool):
     
     This tool provides access to CVE information from public databases,
     allowing agents to retrieve details about known vulnerabilities.
+    Uses the CVE-Search MCP server to access real-time vulnerability data.
     """
     
     def __init__(self):
-        """Initialize the CVE lookup tool."""
+        """Initialize the CVE lookup tool with MCP client."""
+        
+        # Initialize the MCP client
+        self._client = None
         
         # Define the function that will be called by the tool
         def cve_lookup(
             cve_id: Optional[str] = None,
             keywords: Optional[str] = None,
-            max_results: int = 5
+            vendor: Optional[str] = None,
+            product: Optional[str] = None,
+            max_results: int = 10,
+            get_latest: bool = False
         ) -> str:
             """
             Look up information about CVEs (Common Vulnerabilities and Exposures).
@@ -287,47 +296,109 @@ class CveLookupTool(FunctionTool):
             Args:
                 cve_id: Specific CVE ID to look up (e.g., CVE-2023-1234)
                 keywords: Keywords to search for related CVEs
+                vendor: Vendor name to filter by (e.g., 'microsoft', 'apache')
+                product: Product name to filter by (e.g., 'windows', 'struts')
                 max_results: Maximum number of results to return
+                get_latest: If True, return the latest CVEs regardless of other parameters
                 
             Returns:
-                Retrieved CVE information
+                Retrieved CVE information formatted as text
             """
-            return self._lookup_cve(cve_id, keywords, max_results)
+            return self._lookup_cve(
+                cve_id, keywords, vendor, product, max_results, get_latest
+            )
             
         # Initialize the FunctionTool with our function
         super().__init__(func=cve_lookup)
     
-    def _lookup_cve(self, cve_id: Optional[str] = None, keywords: Optional[str] = None, max_results: int = 5) -> str:
+    @property
+    def client(self) -> McpCveClient:
+        """Lazy-loaded MCP client for CVE lookups."""
+        if self._client is None:
+            try:
+                self._client = McpCveClient()
+                logger.info("Initialized MCP CVE client for lookups")
+            except Exception as e:
+                logger.error(f"Failed to initialize MCP CVE client: {e}")
+                # Create a placeholder client that will return errors
+                # This allows the tool to keep working even if MCP is unavailable
+                self._client = None
+        return self._client
+    
+    def _lookup_cve(
+        self, 
+        cve_id: Optional[str] = None, 
+        keywords: Optional[str] = None,
+        vendor: Optional[str] = None,
+        product: Optional[str] = None,
+        max_results: int = 10,
+        get_latest: bool = False
+    ) -> str:
         """
-        Look up CVE information.
+        Look up CVE information using the MCP client.
         
         Args:
             cve_id: Specific CVE ID to look up
             keywords: Keywords to search for related CVEs
+            vendor: Vendor name to filter by
+            product: Product name to filter by
             max_results: Maximum number of results to return
+            get_latest: If True, return the latest CVEs regardless of other parameters
             
         Returns:
-            Retrieved CVE information
+            Retrieved CVE information formatted as text
         """
-        if not cve_id and not keywords:
-            return "Error: Either a CVE ID or search keywords must be provided"
+        # Check if we have enough parameters to perform the lookup
+        if not any([cve_id, keywords, vendor, product, get_latest]):
+            return "Error: Please provide at least one of: CVE ID, keywords, vendor, product, or set get_latest=True"
+        
+        # Check if the MCP client is available
+        if self.client is None:
+            logger.warning("MCP client unavailable, returning fallback response")
+            return (
+                "CVE Lookup Results (Fallback Mode):\n\n"
+                "The MCP server for CVE lookups is currently unavailable. "
+                "Please try again later or use general security research queries instead."
+            )
         
         try:
-            if cve_id:
-                logger.info(f"Looking up CVE: {cve_id}")
-            else:
+            # Handle different lookup types based on provided parameters
+            if get_latest:
+                logger.info(f"Getting latest CVEs (limit: {max_results})")
+                cve_data = self.client.get_latest_cves(limit=max_results)
+                result_intro = "Latest CVE Entries:\n\n"
+                
+            elif cve_id:
+                logger.info(f"Looking up specific CVE: {cve_id}")
+                cve_data = self.client.get_cve(cve_id)
+                result_intro = f"Details for {cve_id}:\n\n"
+                
+            elif vendor and product:
+                logger.info(f"Searching CVEs for vendor '{vendor}' and product '{product}'")
+                cve_data = self.client.search_cves(vendor=vendor, product=product, limit=max_results)
+                result_intro = f"Vulnerabilities for {vendor} {product}:\n\n"
+                
+            elif vendor:
+                logger.info(f"Searching CVEs for vendor '{vendor}'")
+                cve_data = self.client.search_cves(vendor=vendor, limit=max_results)
+                result_intro = f"Vulnerabilities for vendor {vendor}:\n\n"
+                
+            elif keywords:
                 logger.info(f"Searching CVEs with keywords: {keywords}")
+                cve_data = self.client.search_cves(keyword=keywords, limit=max_results)
+                result_intro = f"Search results for '{keywords}':\n\n"
             
-            # In a full implementation, this would query CVE databases
-            # For now, we'll return a placeholder response
-            # This would be replaced with actual CVE lookup logic
+            else:
+                return "Error: Invalid parameter combination for CVE lookup"
             
-            return (
-                "CVE Lookup Results:\n\n"
-                "This is a placeholder for actual CVE lookup functionality, which would "
-                "query public CVE databases to retrieve vulnerability information. "
-                "In a full implementation, this would return details about the requested CVEs."
-            )
+            # Format the results
+            formatted_result = self.client.format_cve_output(cve_data)
+            
+            # Return the formatted result with an introduction
+            if "No CVE information found" in formatted_result or "Error" in formatted_result:
+                return formatted_result  # Return error messages directly
+                
+            return result_intro + formatted_result
             
         except Exception as e:
             logger.error(f"Error in CVE lookup: {e}")
