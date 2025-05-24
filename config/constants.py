@@ -8,7 +8,7 @@ DEFAULT_LOCATION = "us-central1"
 
 # RAG Engine settings
 DEFAULT_CORPUS_NAME = "scout_corpus"
-DEFAULT_EMBEDDING_MODEL = "text-embedding-005"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-exp-03-07"
 DEFAULT_GENERATIVE_MODEL = "gemini-2.5-flash-preview-04-17"
 
 # Retrieval settings
@@ -31,3 +31,15 @@ DEFAULT_DOCUMENT_PREFIXES = [
 ]  # Default document prefixes to scan
 DEFAULT_USE_CLOUD_TRACKING = True  # Whether to store ingestion tracking in cloud
 DEFAULT_CLOUD_TRACKING_PATH = "tracking/ingested_docs.json"  # Path to tracking file in GCS bucket
+
+# MCP Server settings
+MCP_SERVER_HOST = "0.0.0.0"  # Default binding address for the MCP server
+MCP_SERVER_CLIENT_HOST = "localhost"  # Default client connection address
+MCP_SERVER_PORT = 8080  # Default port for the MCP server
+MCP_SERVER_TRANSPORT = "streamable-http"  # Default transport protocol (streamable-http or sse)
+
+# MCP Timeout settings
+MCP_REQUEST_TIMEOUT = 180  # Default timeout for MCP requests in seconds
+MCP_LIST_TIMEOUT = 90      # Default timeout for list operations in seconds
+MCP_CONNECT_TIMEOUT = 30   # Default timeout for initial connection in seconds
+MCP_RETRY_COUNT = 3        # Number of retries for failed operations

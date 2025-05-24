@@ -6,3 +6,4 @@ Google's Agent Development Kit (ADK) to enhance Zero-Day Scout's RAG capabilitie
 """
 
 from src.scout_agent.agent import OrchestratorAgent, ResearchAgent, AnalysisAgent
+from . import agent

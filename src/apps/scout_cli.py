@@ -456,15 +456,15 @@ async def process_query(
                 if agent_outputs["security_researcher"]["output"]:
                     researcher_md = await format_output_markdown(agent_outputs["security_researcher"]["output"], "researcher")
                     
-                    # Parse for RAG information if present
-                    rag_section = ""
+                    # Parse for research sources information if present
+                    sources_section = ""
                     research_content = researcher_md
                     
                     if "## Research Sources" in researcher_md:
-                        # Split the research findings from the RAG information
+                        # Split the research findings from the sources information
                         parts = researcher_md.split("## Research Sources", 1)
                         research_content = parts[0].strip()
-                        rag_section = "## Research Sources" + parts[1]
+                        sources_section = "## Research Sources" + parts[1]
                         
                         # Display research findings
                         console.print(Panel(
@@ -474,10 +474,10 @@ async def process_query(
                             expand=False
                         ))
                         
-                        # Display RAG information in a highlighted panel only if enabled
-                        if show_rag_info:
+                        # Display research sources information in a highlighted panel only if enabled
+                        if show_rag:
                             console.print(Panel(
-                                Markdown(rag_section),
+                                Markdown(sources_section),
                                 title="[bright_cyan]Research Sources[/bright_cyan]",
                                 border_style="cyan",
                                 expand=False
@@ -1055,12 +1055,12 @@ async def main():
                     if agent_outputs.get("security_researcher", {}).get("output"):
                         researcher_md = await format_output_markdown(agent_outputs["security_researcher"]["output"], "researcher")
                         
-                        # Parse for RAG information if present
+                        # Parse for research sources information if present
                         if "## Research Sources" in researcher_md:
-                            # Split the research findings from the RAG information
+                            # Split the research findings from the sources information
                             parts = researcher_md.split("## Research Sources", 1)
                             research_content = parts[0].strip()
-                            rag_section = "## Research Sources" + parts[1]
+                            sources_section = "## Research Sources" + parts[1]
                             
                             # Display research findings
                             console.print(Panel(
@@ -1070,10 +1070,10 @@ async def main():
                                 expand=False
                             ))
                             
-                            # Display RAG information in a highlighted panel only if enabled
+                            # Display research sources information in a highlighted panel only if enabled
                             if not args.no_rag:
                                 console.print(Panel(
-                                    Markdown(rag_section),
+                                    Markdown(sources_section),
                                     title="[bright_cyan]Research Sources[/bright_cyan]",
                                     border_style="cyan",
                                     expand=False

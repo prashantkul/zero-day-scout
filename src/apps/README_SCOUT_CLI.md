@@ -32,7 +32,7 @@ Zero-Day Scout is an advanced security research assistant that combines Large La
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.11+
 - Google Cloud account with Vertex AI access
 - Permission to use Vertex AI Generative AI models
 
