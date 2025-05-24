@@ -5,3 +5,13 @@ CLAUDE.md
 **/.claude/settings.local.json
 **/__pycache__/*
 __pycache__/
+
+# macOS system files
+.DS_Store
+
+# Gemini logs
+.gemini/
+
+# Document metadata and ingestion files
+.document_metadata.json
+.ingested_docs.json
