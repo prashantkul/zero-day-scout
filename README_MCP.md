@@ -1,6 +1,6 @@
-# MCP Server Integration for Zero-Day Scout
+# MCP Integration for Zero-Day Scout
 
-This document explains how the Zero-Day Scout system integrates with the CVE-Search MCP (Model Context Protocol) server to enhance vulnerability research capabilities.
+This document describes the MCP (Message Communication Protocol) integration in the Zero-Day Scout system, which enables the Scout Agent to communicate with the CVE Search server using Google's Agent Development Kit (ADK).
 
 ## Overview
 
@@ -8,93 +8,267 @@ The integration connects Zero-Day Scout's agent system to a local CVE-Search MCP
 
 ## Architecture
 
-The integration follows this architecture:
+The MCP integration consists of the following components:
 
 ```
-┌───────────────┐      ┌──────────────┐      ┌────────────────┐
-│ Orchestrator  │      │ Analysis     │      │ Enhanced       │
-│ Agent         │─────▶│ Agent        │─────▶│ CveLookupTool  │
-└───────────────┘      └──────────────┘      └────────────────┘
-                                                     │
-                                                     ▼
-                                             ┌────────────────┐
-                                             │ MCP Client for │
-                                             │ CVE-Search     │
-                                             └────────────────┘
-                                                     │
-                                                     ▼
-                                             ┌────────────────┐
-                                             │ Local MCP      │
-                                             │ Server         │
-                                             └────────────────┘
+┌───────────────┐                         ┌────────────────┐
+│ Orchestrator  │                         │ MCP-enabled    │
+│ Agent         │────┐                    │ Research Agent │
+└───────────────┘    │                    └────────────────┘
+                     │                            │
+                     ▼                            ▼
+┌────────────────┐  ┌──────────────┐      ┌────────────────┐
+│ Planner Agent  │  │ Analysis     │      │ ADK MCPToolset │
+└────────────────┘  │ Agent        │      └────────────────┘
+                     └──────────────┘              │
+                                                   ▼
+                                          ┌─────────────────┐
+                                          │ MCP Server (SSE)│
+                                          └─────────────────┘
+                                                   │
+                                                   ▼
+                                          ┌─────────────────┐
+                                          │ CVE Database    │
+                                          └─────────────────┘
 ```
 
-## Components
+## Key Components
 
-### 1. MCP Client
+### 1. CVE MCP Server
 
-The MCP client handles communication with the CVE-Search MCP server. It converts tool requests into appropriate API calls and formats the responses for consumption by the agent system.
+A StreamableHTTP-based MCP server providing CVE database access:
 
-#### Key Features:
-- Connection management to the local MCP server
-- Request/response handling
-- Error handling and retries
-- Response formatting and normalization
+- Located in `src/cve_mcp/streamable_server.py`
+- Provides tools for CVE search, vendor/product queries, and database status
+- Supports both StreamableHTTP and SSE transports
+- Implements retry logic and health monitoring
 
-### 2. Enhanced CVE Tools
+### 2. CVE Lookup Agent
 
-The existing `CveLookupTool` has been enhanced to use the MCP client, providing the following capabilities:
+A specialized agent that connects to the MCP server for vulnerability lookups:
 
-#### Key Capabilities:
-- **CVE lookup**: Fetch detailed information about specific CVE IDs
-- **Vendor lookup**: Retrieve vulnerabilities associated with specific vendors
-- **Product lookup**: Find vulnerabilities related to specific products/versions
-- **Latest CVEs**: Access the most recent security vulnerabilities
-- **Keyword search**: Find CVEs matching specific security keywords
+- Located in `src/scout_agent/cve_agent.py`
+- Creates ADK-compatible tools from MCP endpoints
+- Handles query parsing and response formatting
+- Provides AgentTool wrapper for integration
 
-## Setup Requirements
+### 3. OrchestratorAgent
+
+Coordinates the agent workflow and integrates CVE tools:
+
+- Located in `src/scout_agent/agent.py`
+- Dynamically adds CVE tools to Research Agent when MCP is available
+- Manages asynchronous initialization and resource cleanup
+- Dynamically creates and initializes the MCP research agent during query processing
+- Handles agent recreation to avoid parent conflicts
+- Maintains backward compatibility with non-MCP operation
+
+### 3. MCP Server
+
+A FastAPI server with SSE transport that provides CVE search functionality:
+
+- Located in `src/cve_mcp/agent_mcp_server.py`
+- Exposes CVE search tools via the MCP protocol
+- Provides `/health` and `/ping` endpoints for monitoring
+- Includes a ping tool for connection health checking and latency measurement
+- Implemented using the FastAPI framework
+
+## Using the MCP Integration
 
 To use the MCP integration:
 
-1. Ensure you have the CVE-Search MCP server running locally:
-   - Follow the installation instructions at https://github.com/roadwy/cve-search_mcp
-   - Start the MCP server using the provided script
+1. Start the MCP server:
+   ```bash
+   ./start_cve_mcp_server.sh start
+   ```
 
-2. Configure the connection:
-   - The system expects the MCP server to be running at the default location
-   - If needed, update the connection settings in the configuration file
+2. Run the Scout CLI:
+   ```bash
+   python src/apps/scout_cli.py
+   ```
 
-## Using MCP Features in Queries
+3. Issue a query about a specific CVE or security vulnerability.
 
-The agent system automatically leverages the MCP server when appropriate. Examples of queries that benefit from MCP integration:
+The Scout Agent will automatically connect to the MCP server to retrieve relevant CVE information.
 
-- "What are the latest vulnerabilities in Apache Struts?"
-- "Tell me about CVE-2023-12345"
-- "What security issues affect Microsoft Exchange Server?"
-- "Show me critical vulnerabilities from the last 30 days"
+## Testing the MCP Integration
 
-## Benefits of MCP Integration
+To test the MCP integration:
 
-- **Real-time data**: Access the latest vulnerability information from authoritative sources
-- **Comprehensive lookups**: Go beyond RAG-based information with structured database access
-- **Authority verification**: Cross-reference RAG findings with official vulnerability databases
-- **Enriched analysis**: Provide CVSS scores, affected versions, and attack vectors for better security assessment
+1. Run the integration test:
+   ```bash
+   ./run_cve_mcp_sse.sh
+   ```
 
-## Technical Implementation
+2. For a lightweight test that only checks connectivity:
+   ```bash
+   ./test_init_mcp.py
+   ```
 
-The implementation follows these principles:
+## Implementation Details
 
-1. **Graceful degradation**: If the MCP server is unavailable, the system falls back to RAG-based information retrieval
-2. **Result enrichment**: CVE data enhances and validates findings from the RAG pipeline
-3. **Response formatting**: MCP responses are formatted consistently for better agent understanding
-4. **Caching**: Frequent lookup results are cached to improve performance
+### MCP Client Initialization
 
-## Future Enhancements
+The MCP client is initialized in the `AdkMcpResearchAgent` class using ADK's native `MCPToolset.from_server` method:
 
-Potential future improvements to the MCP integration:
+```python
+# Create connection parameters
+mcp_params = SseServerParams(url=mcp_uri)
 
-1. Expanded coverage to additional vulnerability databases
-2. Integration with threat intelligence feeds
-3. Custom vulnerability scoring based on organization context
-4. Visualization of vulnerability trends and statistics
-5. Vendor/product watchlist for continuous monitoring
+# Use the from_server method that works
+result = await MCPToolset.from_server(connection_params=mcp_params)
+
+# Extract tools from the tuple result
+self.mcp_tools = result[0]
+```
+
+### OrchestratorAgent Integration
+
+The `OrchestratorAgent` integrates the MCP research agent in its workflow:
+
+1. Creates the base research agent (non-MCP version) during initialization.
+2. Asynchronously creates and initializes the MCP research agent during `process_query`.
+3. If MCP initialization succeeds, replaces the research agent with the MCP-enabled version.
+4. Recreates the sequential agent workflow to avoid parent conflicts.
+
+### Available MCP Tools
+
+The CVE Search MCP server provides the following tools:
+
+- `vul_vendors`: Get a list of vendors
+- `vul_vendor_products`: Get products for a vendor
+- `vul_vendor_product_cve`: Get CVEs for a vendor and product
+- `vul_cve_search`: Search for a specific CVE by ID
+- `vul_last_cves`: Get the latest CVEs
+- `vul_db_update_status`: Get database update status
+- `ping`: Check server connectivity and measure response time
+
+### Fallback Mechanism
+
+If the MCP server is unavailable or initialization fails, the system falls back to the local CVE lookup tool:
+
+```python
+def _setup_fallback_agent(self):
+    """Set up fallback agent with local CVE tool."""
+    self.cve_lookup_tool = CveLookupTool()
+    self.agent = LlmAgent(
+        name="security_researcher",
+        description="Security researcher specialized in finding vulnerability information",
+        model=self.model_name,
+        instruction=RESEARCH_TASK_PROMPT,
+        tools=[self.rag_tool, self.cve_lookup_tool, self.web_search_tool],
+        output_key="research_findings",
+    )
+    self.connected = False
+```
+
+## Troubleshooting
+
+If you encounter issues with the MCP integration:
+
+1. Check if the MCP server is running:
+   ```bash
+   curl http://localhost:8080/health
+   curl http://localhost:8080/ping
+   ```
+   
+   Or use the dedicated ping test tool:
+   ```bash
+   python test_ping.py
+   ```
+
+2. Run the initialization test to verify connectivity:
+   ```bash
+   ./test_init_mcp.py
+   ```
+
+3. Check the server logs:
+   ```bash
+   ./start_cve_mcp_server.sh logs
+   ```
+
+4. Restart the MCP server:
+   ```bash
+   ./start_cve_mcp_server.sh restart
+   ```
+
+## Monitoring Server Health
+
+The MCP server includes built-in health monitoring features:
+
+### HTTP Health Endpoints
+
+1. `/health` - Basic server status check
+   ```bash
+   curl http://localhost:8080/health
+   ```
+
+2. `/ping` - Response time measurement and server status
+   ```bash
+   curl http://localhost:8080/ping
+   ```
+
+### Ping Tool
+
+The server exposes a `ping` tool via MCP that can be used by clients to check connectivity:
+
+```python
+client = McpCveClient()
+client.connect()
+result = client.ping()
+print(f"Server response time: {result['response_time_ms']}ms")
+```
+
+### CVE CLI Tool
+
+A beautiful command-line interface is provided for interacting with the MCP server:
+
+```bash
+# Interactive mode
+python src/cve_mcp/cve_cli.py
+
+# Search for specific CVE
+python src/cve_mcp/cve_cli.py --cve CVE-2021-44228
+
+# Get latest CVEs
+python src/cve_mcp/cve_cli.py --latest
+
+# Search by vendor/product
+python src/cve_mcp/cve_cli.py --vendor microsoft --product windows_10
+```
+
+Features:
+- Beautiful colored terminal UI
+- Interactive and single-command modes
+- CVE search, vendor/product queries, and database status
+- CVSS score color coding
+- Formatted output for easy reading
+
+See `src/cve_mcp/README_CVE_CLI.md` for detailed usage.
+
+### Ping Test Tool
+
+A comprehensive ping test tool is provided in `test_ping.py`:
+
+```bash
+# Basic usage
+python test_ping.py
+
+# Test with 10 pings
+python test_ping.py --count 10
+
+# Test only HTTP ping
+python test_ping.py --mode http
+
+# Test only MCP ping
+python test_ping.py --mode mcp
+
+# Custom server location
+python test_ping.py --host otherserver --port 8080
+```
+
+The ping test measures:
+- Round-trip time (RTT) from client perspective
+- Server processing time
+- Estimated network latency
+- Response reliability (packet loss)
