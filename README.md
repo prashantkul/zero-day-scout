@@ -4,7 +4,32 @@ A RAG-based security analysis system using Google Cloud Vertex AI RAG Engine.
 
 ## Project Overview
 
-Zero-Day Scout is a Python project that implements a Retrieval-Augmented Generation (RAG) pipeline using Google Cloud Vertex AI RAG Engine. It ingests documents from Google Cloud Storage, creates embeddings, and provides a retrieval mechanism for answering security-related queries, with a focus on identifying zero-day vulnerabilities.
+Zero-Day Scout is an AI-powered security intelligence system that combines multi-agent orchestration with advanced document analysis to identify and analyze security vulnerabilities. 
+Built on Google's Agent Development Kit (ADK), it features a sequential three-agent workflow (Plan → Research → Analyze) that processes security documents through Vertex AI RAG Engine for deep insights.
+
+The system provides two modes of interaction - 
+1. RAG System - Direct document retrieval & question answering
+2. Agentic RAG - Deep security research with multi-agent workflow
+
+The system integrates with CVE databases via Message Communication Protocol (MCP) to provide real-time vulnerability data, and offers both a Scout CLI for security analysis and an interactive CVE CLI for vulnerability
+searches. It generates comprehensive security reports in markdown format, making it an essential tool for security researchers and professionals seeking to understand emerging threats and vulnerabilities in their
+technology stack.
+
+## Console Screenshots
+
+### Zero-day HQ
+Run `python zero_day_hq.py `
+![ZTS-HQ](https://github.com/prashantkul/zero-day-scout/blob/add-screen-shots/zts-1.png)
+
+### Option # 1 - Interact with RAG system
+![RAG](https://github.com/prashantkul/zero-day-scout/blob/add-screen-shots/zts-2.png)
+
+### Option # 2 - Interact with Agentic RAG system
+![Agentic-RAG](https://github.com/prashantkul/zero-day-scout/blob/add-screen-shots/zts-3.png)
+
+## Architecture
+![Architecture](https://github.com/prashantkul/zero-day-scout/blob/add-screen-shots/Zero-Day%20Scout.png)
+
 
 ## Environment Setup
 
@@ -55,20 +80,41 @@ Configuration is managed through environment variables and default values:
 
 The system can be configured to ingest documents from specific prefixes in your GCS bucket:
 
-1. Configure document prefixes in your `.env` file:
+1. Configure document prefixes in your `constants.py` file:
    ```
    DOCUMENT_PREFIXES=research/,papers/,publications/
    ```
 
 2. Default prefixes are set in `config/constants.py` if not specified:
    ```python
-   DEFAULT_DOCUMENT_PREFIXES = ["research/", "papers/", "publications/"]
+   DEFAULT_DOCUMENT_PREFIXES = [
+    "arxiv_security_papers/",
+    "uploaded_papers/",
+    "cves/",] 
    ```
 
 3. To ingest documents from these prefixes, call the `ingest_documents` method with an empty list:
    ```python
    pipeline.ingest_documents([])  # Uses configured prefixes
    ```
+
+## Testing MCP with MCP Inspector
+MCP server can be tested with MCP Inspector
+1. Start MCP server using `start_cve_mcp_server.sh`, this will launch MCP server in background mode.
+   ```Starting CVE MCP Server in the foreground...
+      2025-05-24 08:11:18,721 - cve-search-mcp - INFO - Starting MCP server at http://0.0.0.0:8080
+      2025-05-24 08:11:18,721 - cve-search-mcp - INFO -   - StreamableHTTP MCP: http://0.0.0.0:8080/mcp/
+      2025-05-24 08:11:18,721 - cve-search-mcp - INFO -   - SSE MCP (Legacy): http://0.0.0.0:8080/mcp/sse
+      2025-05-24 08:11:18,721 - cve-search-mcp - INFO -   - HTTP Ping: http://0.0.0.0:8080/ping
+      2025-05-24 08:11:18,721 - cve-search-mcp - INFO -   - JSON response mode for StreamableHTTP: disabled
+      INFO:     Started server process [53353]
+      INFO:     Waiting for application startup.
+      2025-05-24 08:11:18,760 - mcp.server.streamable_http_manager - INFO - StreamableHTTP session manager started
+      2025-05-24 08:11:18,760 - cve-search-mcp - INFO - MCP server started with StreamableHTTPSessionManager and SSE transport
+      INFO:     Application startup complete.```
+
+![MCP-Inspector](https://github.com/prashantkul/zero-day-scout/blob/add-screen-shots/mcp.png)
+
 
 ### Duplicate Prevention
 
@@ -81,52 +127,8 @@ The system now tracks ingested documents to prevent duplicates:
    pipeline = VertexRagPipeline(tracking_file="/custom/path/to/tracking.json")
    ```
 
-## RAG Pipeline Usage
-
-Basic usage of the RAG pipeline:
-
-```python
-from src.rag.pipeline import VertexRagPipeline
-
-# Initialize pipeline
-pipeline = VertexRagPipeline()
-
-# Create corpus and ingest documents (uses configured prefixes)
-corpus = pipeline.create_corpus()
-pipeline.ingest_documents([])
-
-# Or specify explicit GCS paths
-pipeline.ingest_documents(["gs://your-bucket/specific-document.pdf"])
-
-# Query the RAG pipeline
-answer = pipeline.generate_answer("What are common zero-day vulnerabilities?")
-print(answer)
-```
-
-Run the example scripts:
-
-```bash
-# Test document ingestion with prefixes and duplicate prevention
-python -m src.examples.test_document_ingestion
-
-# List existing files in GCS and run a query
-python -m src.examples.rag_example --gcs-prefix documents --query "What are zero-day vulnerabilities?"
-
-# Upload local documents to GCS and ingest them
-python -m src.examples.rag_example --upload-dir ./local_documents --query "Explain zero-day exploits"
-```
-
-## Direct RAG Integration
-
-For enhanced performance, the system supports direct RAG integration where retrieval happens within the model call:
-
-```python
-# Use direct RAG integration (with optional reranking)
-answer = pipeline.direct_rag_response(
-    query="What are the latest zero-day vulnerabilities?",
-    use_reranking=True
-)
-```
+## RAG Reranking support
+The system uses Vertex AI Reranking to improve quality of content. 
 
 See `README_RERANKING.md` for more information on setting up and using the reranking feature.
 
