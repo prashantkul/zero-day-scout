@@ -2,7 +2,7 @@
 uv==0.7.3
 google-generativeai==0.8.5
 google-cloud-aiplatform==1.92.0
-google-cloud-storage==2.14.0
+google-cloud-storage==2.18.0
 python-dotenv==1.1.0
 streamlit==1.30.0
 # PDF generation
@@ -11,4 +11,12 @@ reportlab==4.1.0
 rich==13.7.0
 # Cloud Run requirements
 flask==2.3.3
+google-adk>=1.0.0
 gunicorn==21.2.0
+mcp[cli]>=1.8.1
+requests>=2.32.3
+uvicorn>=0.25.0  # High-performance ASGI server (used by SSE transport)
+starlette>=0.35.0  # Web framework used internally by the MCP SSE implementation
+sseclient>=0.0.27  # For testing SSE connections
+colorama==0.4.6
+Flask-Cors==6.0.0

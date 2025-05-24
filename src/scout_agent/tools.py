@@ -5,17 +5,25 @@ This module implements specialized tools for the agents:
 - RagQueryTool: Interface to the VertexRagPipeline for information retrieval
 - VulnerabilityAnalysisTool: Tool for analyzing security vulnerabilities
 - CveLookupTool: Tool for looking up CVE information
+- WebSearchTool: Tool for searching the web for security information using Tavily
 """
 
 from typing import Dict, List, Any, Optional
 import json
 import logging
 import inspect
+import os
+import requests
+import datetime
+from urllib.parse import urlparse
+from dotenv import load_dotenv
 
 from google.adk.tools import FunctionTool
 
 from src.rag.pipeline import VertexRagPipeline
-from src.scout_agent.mcp_cve_client import McpCveClient
+
+# Load environment variables (including Tavily API key)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +102,7 @@ class RagQueryTool(FunctionTool):
                 # Check if the pipeline has tracked contexts
                 if hasattr(self.pipeline, 'last_contexts') and self.pipeline.last_contexts and len(self.pipeline.last_contexts) > 0:
                     rag_info = f"\n\n## Research Sources\n\n"
-                    rag_info += "The following documents were retrieved to support this analysis:\n\n"
+                    rag_info += "### RAG Corpus Sources\n"
                     
                     # Log detailed information about contexts for debugging
                     logger.debug(f"Number of contexts: {len(self.pipeline.last_contexts)}")
@@ -150,7 +158,7 @@ class RagQueryTool(FunctionTool):
                             else:
                                 rag_info += f"**{i+1}. {doc_name}**\n"
                             
-                            rag_info += f"*Excerpt:* \"{excerpt}\"\n\n"
+                            rag_info += f"*Excerpt:* \"{excerpt}\"\n"
                             
                             # Try to extract publication date if available
                             pub_date = None
@@ -167,6 +175,8 @@ class RagQueryTool(FunctionTool):
                             # Add publication date if available
                             if pub_date:
                                 rag_info += f"*Published:* {pub_date}\n\n"
+                            else:
+                                rag_info += "\n"
                     
                     # Add this RAG information to the response for display purposes
                     formatted_response = f"{response}\n\n{rag_info}"
@@ -181,20 +191,86 @@ class RagQueryTool(FunctionTool):
             except Exception as e:
                 logger.warning(f"Direct RAG failed, falling back to standard approach: {e}")
                 
+                # Check if this is a quota limit exceeded error
+                if "quota" in str(e).lower() or "limit" in str(e).lower() or "exceed" in str(e).lower():
+                    # Special handling for quota limit issues
+                    logger.warning("Detected possible quota limit error in RAG")
+                    
+                    # Try to get at least the contexts even if generation fails
+                    try:
+                        contexts = self.pipeline.retrieve_context(
+                            query=query,
+                            top_k=max_results,
+                            use_reranking=use_reranking
+                        )
+                        
+                        if contexts and len(contexts) > 0:
+                            # Construct a response that includes the context information only
+                            context_info = "RAG quota limit reached. Context references found:\n\n"
+                            
+                            for i, ctx in enumerate(contexts[:max_results], 1):
+                                # Extract any text we can get
+                                text = ""
+                                if hasattr(ctx, 'text'):
+                                    text = ctx.text
+                                elif hasattr(ctx, 'chunk') and hasattr(ctx.chunk, 'data'):
+                                    text = ctx.chunk.data
+                                elif hasattr(ctx, 'content'):
+                                    text = ctx.content
+                                
+                                # Get document name
+                                doc_name = "Document"
+                                if hasattr(ctx, 'uri'):
+                                    doc_name = ctx.uri.split('/')[-1].replace('.txt', '').replace('_', ' ').replace('-', ' ')
+                                elif hasattr(ctx, 'name'):
+                                    doc_name = ctx.name.split('/')[-1].replace('.txt', '').replace('_', ' ').replace('-', ' ')
+                                elif hasattr(ctx, 'file_path'):
+                                    doc_name = ctx.file_path.split('/')[-1].replace('.txt', '').replace('_', ' ').replace('-', ' ')
+                                
+                                # Capitalize doc_name for readability
+                                if doc_name and doc_name != "Document":
+                                    doc_name = ' '.join(word.capitalize() for word in doc_name.split())
+                                
+                                # Add to context information
+                                context_info += f"Reference {i}: {doc_name}\n"
+                                
+                                # Extract CVE IDs from text for easier lookup
+                                import re
+                                cve_pattern = r'CVE-\d{4}-\d{4,7}'
+                                cve_ids = re.findall(cve_pattern, text)
+                                if cve_ids:
+                                    context_info += f"Contains CVE references: {', '.join(cve_ids)}\n"
+                                
+                                # Add a snippet of text if available
+                                if text:
+                                    snippet = text[:150] + "..." if len(text) > 150 else text
+                                    context_info += f"Excerpt: {snippet}\n\n"
+                            
+                            # Add note about using CVE lookup tool
+                            context_info += "\nNote: Since the RAG quota is reached, consider using the CVE lookup tool for any CVE IDs found in these references, or the web search tool for additional information."
+                            
+                            return context_info
+                    except Exception as inner_e:
+                        logger.error(f"Failed to extract context information: {inner_e}")
+                
                 # Fall back to standard approach
-                contexts = self.pipeline.retrieve_context(
-                    query=query,
-                    top_k=max_results,
-                    use_reranking=use_reranking
-                )
-                
-                # Generate answer from contexts
-                response = self.pipeline.generate_answer(
-                    query=query,
-                    retrievals=contexts
-                )
-                
-                return response
+                try:
+                    contexts = self.pipeline.retrieve_context(
+                        query=query,
+                        top_k=max_results,
+                        use_reranking=use_reranking
+                    )
+                    
+                    # Generate answer from contexts
+                    response = self.pipeline.generate_answer(
+                        query=query,
+                        retrievals=contexts
+                    )
+                    
+                    return response
+                except Exception as fallback_e:
+                    logger.error(f"Standard RAG approach also failed: {fallback_e}")
+                    return f"Error retrieving information from RAG: {str(e)}. Consider using the CVE lookup tool or web search tool as alternatives."
                 
         except Exception as e:
             logger.error(f"Error executing RAG query: {e}")
@@ -266,140 +342,5 @@ class VulnerabilityAnalysisTool(FunctionTool):
             return f"Error analyzing vulnerabilities: {str(e)}"
 
 
-class CveLookupTool(FunctionTool):
-    """
-    Tool for looking up CVE (Common Vulnerabilities and Exposures) information.
-    
-    This tool provides access to CVE information from public databases,
-    allowing agents to retrieve details about known vulnerabilities.
-    Uses the CVE-Search MCP server to access real-time vulnerability data.
-    """
-    
-    def __init__(self):
-        """Initialize the CVE lookup tool with MCP client."""
-        
-        # Initialize the MCP client
-        self._client = None
-        
-        # Define the function that will be called by the tool
-        def cve_lookup(
-            cve_id: Optional[str] = None,
-            keywords: Optional[str] = None,
-            vendor: Optional[str] = None,
-            product: Optional[str] = None,
-            max_results: int = 10,
-            get_latest: bool = False
-        ) -> str:
-            """
-            Look up information about CVEs (Common Vulnerabilities and Exposures).
-            
-            Args:
-                cve_id: Specific CVE ID to look up (e.g., CVE-2023-1234)
-                keywords: Keywords to search for related CVEs
-                vendor: Vendor name to filter by (e.g., 'microsoft', 'apache')
-                product: Product name to filter by (e.g., 'windows', 'struts')
-                max_results: Maximum number of results to return
-                get_latest: If True, return the latest CVEs regardless of other parameters
-                
-            Returns:
-                Retrieved CVE information formatted as text
-            """
-            return self._lookup_cve(
-                cve_id, keywords, vendor, product, max_results, get_latest
-            )
-            
-        # Initialize the FunctionTool with our function
-        super().__init__(func=cve_lookup)
-    
-    @property
-    def client(self) -> McpCveClient:
-        """Lazy-loaded MCP client for CVE lookups."""
-        if self._client is None:
-            try:
-                self._client = McpCveClient()
-                logger.info("Initialized MCP CVE client for lookups")
-            except Exception as e:
-                logger.error(f"Failed to initialize MCP CVE client: {e}")
-                # Create a placeholder client that will return errors
-                # This allows the tool to keep working even if MCP is unavailable
-                self._client = None
-        return self._client
-    
-    def _lookup_cve(
-        self, 
-        cve_id: Optional[str] = None, 
-        keywords: Optional[str] = None,
-        vendor: Optional[str] = None,
-        product: Optional[str] = None,
-        max_results: int = 10,
-        get_latest: bool = False
-    ) -> str:
-        """
-        Look up CVE information using the MCP client.
-        
-        Args:
-            cve_id: Specific CVE ID to look up
-            keywords: Keywords to search for related CVEs
-            vendor: Vendor name to filter by
-            product: Product name to filter by
-            max_results: Maximum number of results to return
-            get_latest: If True, return the latest CVEs regardless of other parameters
-            
-        Returns:
-            Retrieved CVE information formatted as text
-        """
-        # Check if we have enough parameters to perform the lookup
-        if not any([cve_id, keywords, vendor, product, get_latest]):
-            return "Error: Please provide at least one of: CVE ID, keywords, vendor, product, or set get_latest=True"
-        
-        # Check if the MCP client is available
-        if self.client is None:
-            logger.warning("MCP client unavailable, returning fallback response")
-            return (
-                "CVE Lookup Results (Fallback Mode):\n\n"
-                "The MCP server for CVE lookups is currently unavailable. "
-                "Please try again later or use general security research queries instead."
-            )
-        
-        try:
-            # Handle different lookup types based on provided parameters
-            if get_latest:
-                logger.info(f"Getting latest CVEs (limit: {max_results})")
-                cve_data = self.client.get_latest_cves(limit=max_results)
-                result_intro = "Latest CVE Entries:\n\n"
-                
-            elif cve_id:
-                logger.info(f"Looking up specific CVE: {cve_id}")
-                cve_data = self.client.get_cve(cve_id)
-                result_intro = f"Details for {cve_id}:\n\n"
-                
-            elif vendor and product:
-                logger.info(f"Searching CVEs for vendor '{vendor}' and product '{product}'")
-                cve_data = self.client.search_cves(vendor=vendor, product=product, limit=max_results)
-                result_intro = f"Vulnerabilities for {vendor} {product}:\n\n"
-                
-            elif vendor:
-                logger.info(f"Searching CVEs for vendor '{vendor}'")
-                cve_data = self.client.search_cves(vendor=vendor, limit=max_results)
-                result_intro = f"Vulnerabilities for vendor {vendor}:\n\n"
-                
-            elif keywords:
-                logger.info(f"Searching CVEs with keywords: {keywords}")
-                cve_data = self.client.search_cves(keyword=keywords, limit=max_results)
-                result_intro = f"Search results for '{keywords}':\n\n"
-            
-            else:
-                return "Error: Invalid parameter combination for CVE lookup"
-            
-            # Format the results
-            formatted_result = self.client.format_cve_output(cve_data)
-            
-            # Return the formatted result with an introduction
-            if "No CVE information found" in formatted_result or "Error" in formatted_result:
-                return formatted_result  # Return error messages directly
-                
-            return result_intro + formatted_result
-            
-        except Exception as e:
-            logger.error(f"Error in CVE lookup: {e}")
-            return f"Error looking up CVE information: {str(e)}"
+# Note: The CveLookupTool has been replaced by the dedicated CveLookupAgent
+# in cve_agent.py, which connects directly to the MCP server.

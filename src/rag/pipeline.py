@@ -927,56 +927,9 @@ class VertexRagPipeline:
         if time_filter:
             metadata_filters = []
             
-            # Process specific year filter
-            if 'year' in time_filter:
-                year = time_filter['year']
-                metadata_filters.append(
-                    rag.MetadataFilter(
-                        key="publication_year",
-                        string_value=year,
-                        operation=rag.MetadataFilter.Operation.EQUAL
-                    )
-                )
-            
-            # Process "after year" filter
-            if 'after' in time_filter:
-                year = time_filter['after']
-                metadata_filters.append(
-                    rag.MetadataFilter(
-                        key="publication_year",
-                        int_value=int(year),
-                        operation=rag.MetadataFilter.Operation.GREATER_THAN_OR_EQUAL
-                    )
-                )
-                
-            # Process "before year" filter
-            if 'before' in time_filter:
-                year = time_filter['before']
-                metadata_filters.append(
-                    rag.MetadataFilter(
-                        key="publication_year",
-                        int_value=int(year),
-                        operation=rag.MetadataFilter.Operation.LESS_THAN_OR_EQUAL
-                    )
-                )
-                
-            # Process "between years" filter
-            if 'between' in time_filter:
-                start_year, end_year = time_filter['between']
-                metadata_filters.append(
-                    rag.MetadataFilter(
-                        key="publication_year",
-                        int_value=int(start_year),
-                        operation=rag.MetadataFilter.Operation.GREATER_THAN_OR_EQUAL
-                    )
-                )
-                metadata_filters.append(
-                    rag.MetadataFilter(
-                        key="publication_year",
-                        int_value=int(end_year),
-                        operation=rag.MetadataFilter.Operation.LESS_THAN_OR_EQUAL
-                    )
-                )
+            # Metadata filtering disabled due to API incompatibility
+            # TODO: Re-enable when vertexai.rag.MetadataFilter is available
+            logger.info(f"Time filter requested but disabled: {time_filter}")
             
             # Add the metadata filters to the main filter
             if metadata_filters:
@@ -1022,25 +975,25 @@ class VertexRagPipeline:
         # Ensure corpus exists
         self.get_corpus()
 
-        # Process query for time-based terms
-        processed_query, extracted_time_filter = self._extract_time_filter_from_query(query)
+        # # Process query for time-based terms
+        # processed_query, extracted_time_filter = self._extract_time_filter_from_query(query)
         
-        # Combine extracted time filter with provided time filter
-        if extracted_time_filter and not time_filter:
-            time_filter = extracted_time_filter
-        elif extracted_time_filter and time_filter:
-            # Merge the filters, with explicit parameters taking precedence
-            time_filter = {**extracted_time_filter, **time_filter}
+        # # Combine extracted time filter with provided time filter
+        # if extracted_time_filter and not time_filter:
+        #     time_filter = extracted_time_filter
+        # elif extracted_time_filter and time_filter:
+        #     # Merge the filters, with explicit parameters taking precedence
+        #     time_filter = {**extracted_time_filter, **time_filter}
             
         # If time filter detected, modify the query to remove time references
-        if extracted_time_filter:
-            query = processed_query
-            print(f"Modified query: '{query}' with time filter: {time_filter}")
+        # if extracted_time_filter:
+        #     query = processed_query
+        #     print(f"Modified query: '{query}' with time filter: {time_filter}")
 
         # Configure retrieval with optional reranking
         retrieval_config_args = {
             "top_k": top_k,
-            "filter": self._create_filter(distance_threshold, time_filter),
+            "filter": self._create_filter(distance_threshold),
         }
 
         # Add reranking if enabled
