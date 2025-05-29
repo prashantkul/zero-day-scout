@@ -132,6 +132,81 @@ The system uses Vertex AI Reranking to improve quality of content.
 
 See `README_RERANKING.md` for more information on setting up and using the reranking feature.
 
+## Agentic RAG System
+
+Zero-Day Scout includes an agentic RAG system that uses Google ADK (Agent Development Kit) to orchestrate multiple specialized agents for comprehensive security analysis.
+
+### Agent Architecture
+
+The system uses a `SequentialAgent` that coordinates three specialized agents:
+
+1. **PlannerAgent**: Creates a structured research plan from the user query
+   - Output stored in: `state["research_plan"]`
+   
+2. **ResearchAgent**: Executes the plan using multiple tools (RAG, CVE lookup, web search)
+   - Reads from: `state["research_plan"]`
+   - Output stored in: `state["research_findings"]`
+   
+3. **AnalysisAgent**: Analyzes findings and generates security insights
+   - Reads from: `state["research_plan"]` and `state["research_findings"]`
+   - Produces the final response
+
+### How Agent State Passing Works
+
+The Google ADK `SequentialAgent` automatically manages data flow between agents:
+
+1. Each agent defines an `output_key` when initialized
+2. The agent's output is automatically stored in the shared state using this key
+3. Subsequent agents can access previous outputs from the state
+4. The state is passed automatically - no manual intervention required
+
+Example flow:
+```
+User Query → PlannerAgent → state["research_plan"] → ResearchAgent → state["research_findings"] → AnalysisAgent → Final Response
+```
+
+### Troubleshooting
+
+#### RAG Query Tool Not Being Used
+
+**Issue**: The Research Agent may not use the RAG query tool even when it should.
+
+**Cause**: Tool naming mismatch between prompts and actual tool definitions.
+
+**Solution**: Ensure tool names in prompts match the function names:
+- RAG tool: `rag_query` (not `rag_query_tool`)
+- Web search tool: `web_search` (not `web_search_tool`)
+- CVE tool: `cve_lookup_specialist`
+
+The prompts should reference these exact tool names. Additionally, the Research Agent prompt should enforce RAG-first approach:
+- Make RAG query mandatory as the first step
+- Use other tools only to supplement RAG results
+- Explicitly state that `rag_query` is the PRIMARY source
+
+#### Agent State Access
+
+**Issue**: Agents may not properly access data from previous agents.
+
+**Solution**: Ensure prompts explicitly specify the state keys:
+```python
+# In Research Agent prompt:
+"The research plan from the planner agent will be available in the agent state with the key 'research_plan'."
+
+# In Analysis Agent prompt:
+"The research plan will be available in the agent state with the key 'research_plan'."
+"The research findings will be available in the agent state with the key 'research_findings'."
+```
+
+### Running the Agentic System
+
+```bash
+# Run the Scout Agent with CVE MCP integration
+python -m src.scout_agent.run --query "Tell me about Log4Shell vulnerability"
+
+# Start the CVE MCP server (required for CVE lookups)
+./start_cve_mcp_server.sh start
+```
+
 ## Development Guidelines
 
 When working with this codebase:
@@ -140,3 +215,5 @@ When working with this codebase:
 2. Update environment variables in .env for your specific setup
 3. Follow the existing module structure for new features
 4. Add tests for new functionality when implementing
+5. When modifying agent prompts, ensure tool names match actual function definitions
+6. Test the full agent pipeline after any prompt changes
