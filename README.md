@@ -11,7 +11,7 @@ The system provides two modes of interaction -
 1. RAG System - Direct document retrieval & question answering
 2. Agentic RAG - Deep security research with multi-agent workflow
 
-The system integrates with CVE databases via Message Communication Protocol (MCP) to provide real-time vulnerability data, and offers both a Scout CLI for security analysis and an interactive CVE CLI for vulnerability
+The system integrates with CVE databases via Model Context Protocol (MCP) to provide real-time vulnerability data, and offers both a Scout CLI for security analysis and an interactive CVE CLI for vulnerability
 searches. It generates comprehensive security reports in markdown format, making it an essential tool for security researchers and professionals seeking to understand emerging threats and vulnerabilities in their
 technology stack.
 
