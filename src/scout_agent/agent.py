@@ -187,8 +187,8 @@ class OrchestratorAgent:
             agent=self.root_agent # Use the fully constructed SequentialAgent
         )
 
-        # Session for the runner
-        session = runner.session_service.create_session(
+        # Session for the runner - await the coroutine
+        session = await runner.session_service.create_session(
             app_name=runner.app_name, user_id="test_user" # Consider making user_id dynamic
         )
         
