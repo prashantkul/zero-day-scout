@@ -41,7 +41,7 @@ After enabling the Discovery Engine API, you can enable reranking by:
 
 3. Specifying the reranker model (optional):
    ```python
-   DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-preview-04-17"  # Or another compatible model
+   DEFAULT_RERANKER_MODEL = "gemini-2.5-flash"  # Or another compatible model
    ```
 
 ## Using Reranking in Code

@@ -15,7 +15,7 @@ python src/apps/scout_cli.py --query "What are the latest zero-day vulnerabiliti
 | Argument | Description |
 |----------|-------------|
 | --query, -q | Specify a query to process |
-| --model, -m | Set the model to use (default: gemini-2.5-flash-preview-04-17) |
+| --model, -m | Set the model to use (default: gemini-2.5-flash) |
 | --enhance, -e | Automatically enhance the query |
 | --no-enhancement, -n | Skip query enhancement |
 | --no-rag | Hide RAG source information |

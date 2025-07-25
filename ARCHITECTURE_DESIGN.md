@@ -105,7 +105,7 @@ Zero-Day Scout enables security researchers and analysts to:
 **Implementation Details**:
 - Uses `LlmAgent` with specialized planning instruction prompt
 - Output key: "research_plan" for structured plan generation
-- Works with configurable models (default: gemini-2.5-flash-preview-04-17)
+- Works with configurable models (default: gemini-2.5-flash)
 
 #### 3.1.3 Research Agent  
 **Purpose**: Execute information retrieval using multiple tools and sources

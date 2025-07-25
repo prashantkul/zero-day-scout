@@ -247,7 +247,7 @@ async def format_output_markdown(text, agent_type):
     """Format agent output as markdown with highlights based on agent type."""
     if not text:
         return ""
-        
+
     # Create different formatting based on agent type
     if agent_type == "planner":
         # For planner, format structured plans, highlight headings, lists
@@ -268,13 +268,12 @@ async def format_output_markdown(text, agent_type):
     else:
         # Default formatting
         formatted = text
-        
+
     return formatted
 
 
 async def create_execution_plan(
-    query: str,
-    model_name: str = "gemini-2.5-flash-preview-04-17"
+    query: str, model_name: str = "gemini-2.5-flash"
 ) -> str:
     """
     Create an execution plan for the query before processing it.
@@ -291,7 +290,7 @@ async def create_execution_plan(
             # Use a smaller, faster model to create the plan
             config = get_config()
             planner_model = GenerativeModel(model_name or config.get("generative_model"))
-            
+
             prompt = f"""
             I'm about to use an Agentic RAG system with a sequential workflow to research this security query:
             
@@ -308,10 +307,10 @@ async def create_execution_plan(
             
             Keep your plan concise (maximum 8-10 lines total), focused, and use bullet points where appropriate.
             """
-            
+
             response = planner_model.generate_content(prompt)
             execution_plan = response.text.strip()
-            
+
             return execution_plan
         except Exception as e:
             logger.warning(f"Error creating execution plan: {e}")
@@ -320,9 +319,9 @@ async def create_execution_plan(
 
 
 async def process_query(
-    query: str, 
-    model_name: str = "gemini-2.5-flash-preview-04-17", 
-    verbose: bool = False, 
+    query: str,
+    model_name: str = "gemini-2.5-flash",
+    verbose: bool = False,
     show_agent_outputs: bool = True,
     show_rag: bool = True,
     show_plan: bool = True,
@@ -349,13 +348,13 @@ async def process_query(
         except Exception as e:
             console.print(f"[error]Error initializing agent system: {e}[/error]")
             return None
-    
+
     # If show_plan is enabled, create and display execution plan
     if show_plan:
         try:
             # Generate the execution plan
             execution_plan = await create_execution_plan(query, model_name)
-            
+
             # Display the plan in a highlighted panel
             console.print("\n[bold]Execution Plan:[/bold]")
             console.print(Panel(
@@ -364,34 +363,34 @@ async def process_query(
                 border_style="cyan",
                 expand=False
             ))
-            
+
             # Ask for confirmation to proceed
             proceed = Prompt.ask("\n[bold cyan]Proceed with execution?[/bold cyan]", choices=["y", "n"], default="y")
-            
+
             if proceed.lower() != "y":
                 console.print("[info]Query execution canceled by user.[/info]")
                 return "Query execution was canceled."
-                
+
         except Exception as e:
             # If plan creation fails, just log and continue
             logger.warning(f"Error creating execution plan: {e}")
             console.print("[yellow]Could not create execution plan. Proceeding directly.[/yellow]")
-    
+
     # Process the query - use a distinctive separator for clarity
     console.print("\n[bright_white]════════════════════════════════════════════[/bright_white]")
     console.print(f"[query]Processing query: '{query}'[/query]")
     console.print("[bright_white]════════════════════════════════════════════[/bright_white]\n")
-    
+
     try:
         # Execute the query processing workflow
         with Status("[step.current]Starting agent workflow...[/step.current]", spinner="dots") as status:
             start_time = time.time()
-            
+
             # Show status updates for each agent in the workflow
             status.update("[agent.planner]Planning security research strategy...[/agent.planner]")
             # Small delay to show the status change (for user experience)
             await asyncio.sleep(1)
-            
+
             # Process query through the orchestrator
             # These status updates provide real-time feedback while the actual processing is running
             try:
@@ -399,46 +398,46 @@ async def process_query(
                 # Step 1: The Planner agent
                 status.update("[agent.planner]Planning security research strategy...[/agent.planner]")
                 await asyncio.sleep(0.8)
-                
+
                 # Step 2: The Research agent with better status updates
                 status.update("[agent.researcher]Retrieving relevant research...[/agent.researcher]")
                 await asyncio.sleep(0.8)
                 status.update("[agent.researcher]Analyzing security documents...[/agent.researcher]")
                 await asyncio.sleep(0.8)
-                
+
                 # Step 3: The Analysis agent with better status updates
                 status.update("[agent.analyst]Examining security implications...[/agent.analyst]")
                 await asyncio.sleep(0.8)
                 status.update("[agent.analyst]Developing security insights...[/agent.analyst]")
                 await asyncio.sleep(0.8)
-                
+
                 # Final synthesis
                 status.update("[step.current]Synthesizing final analysis...[/step.current]")
                 await asyncio.sleep(0.5)
-                
+
                 # Process the query with the orchestrator - returns a dictionary
                 result = await orchestrator.process_query(query)
-                
+
                 # The final response is in result["final_response"]
                 # The agent outputs are in result["agent_outputs"]
                 final_response = result["final_response"]
                 agent_outputs = result["agent_outputs"]
-                
+
             except Exception as workflow_error:
                 # If there's an error in the workflow display, still try the actual processing
                 console.print(f"[yellow]Warning: Workflow display error: {workflow_error}[/yellow]")
                 result = await orchestrator.process_query(query)
                 final_response = result["final_response"]
                 agent_outputs = result["agent_outputs"]
-            
+
             elapsed_time = time.time() - start_time
             status.update(f"[step.complete]✓ Analysis completed in {elapsed_time:.2f} seconds[/step.complete]")
             console.print("\n[bright_white]════════════════════════════════════════════[/bright_white]")
-        
+
         # Display the results in a formatted way with panels
         if show_agent_outputs:
             console.print("\n[bold]Agent Workflow Execution:[/bold]")
-            
+
             # Check if we have proper agent outputs to display
             if agent_outputs:
                 # Create panels for each agent in the workflow
@@ -451,21 +450,21 @@ async def process_query(
                         border_style="cyan",
                         expand=False
                     ))
-                
+
                 # Research agent output - will now show RAG retrieval information
                 if agent_outputs["security_researcher"]["output"]:
                     researcher_md = await format_output_markdown(agent_outputs["security_researcher"]["output"], "researcher")
-                    
+
                     # Parse for research sources information if present
                     sources_section = ""
                     research_content = researcher_md
-                    
+
                     if "## Research Sources" in researcher_md:
                         # Split the research findings from the sources information
                         parts = researcher_md.split("## Research Sources", 1)
                         research_content = parts[0].strip()
                         sources_section = "## Research Sources" + parts[1]
-                        
+
                         # Display research findings
                         console.print(Panel(
                             Markdown(research_content),
@@ -473,7 +472,7 @@ async def process_query(
                             border_style="blue",
                             expand=False
                         ))
-                        
+
                         # Display research sources information in a highlighted panel only if enabled
                         if show_rag:
                             console.print(Panel(
@@ -490,7 +489,7 @@ async def process_query(
                             border_style="blue",
                             expand=False
                         ))
-                
+
                 # Analysis agent output
                 if agent_outputs["security_analyst"]["output"]:
                     analyst_md = await format_output_markdown(agent_outputs["security_analyst"]["output"], "analyst")
@@ -500,7 +499,7 @@ async def process_query(
                         border_style="green",
                         expand=False
                     ))
-        
+
         # Return both final_response and agent_outputs so they can be used for export
         return (final_response, agent_outputs)
     except KeyboardInterrupt:
@@ -564,11 +563,11 @@ async def enhance_query(query: str, model_name: str) -> str:
 
 
 async def interactive_mode(
-    model_name: str = "gemini-2.5-flash-preview-04-17", 
-    verbose: bool = False, 
+    model_name: str = "gemini-2.5-flash",
+    verbose: bool = False,
     show_rag: bool = True,
     show_plan: bool = True,
-    auto_export_md: bool = False
+    auto_export_md: bool = False,
 ):
     """
     Run the agent in interactive mode.
@@ -583,33 +582,33 @@ async def interactive_mode(
     # Display logo and commands
     display_logo()
     console.print()
-    
+
     # Show startup information
     with Status("[info]Loading Zero-Day Scout Agent system...[/info]", spinner="dots") as status:
         # Show loading sequence for better UX
         status.update("[info]Initializing system components...[/info]")
         time.sleep(0.5)
-        
+
         status.update("[info]Loading security knowledge base...[/info]")
         time.sleep(0.5)
-        
+
         status.update("[info]Configuring agent workflow...[/info]")
         time.sleep(0.5)
-        
+
         status.update("[info]Setting up sequential agent pipeline...[/info]")
         time.sleep(0.5)
-        
+
         status.update("[green]System ready![/green]")
-    
+
     # Display agent structure and commands
     display_agent_structure()
     console.print()
     display_commands()
-    
+
     console.print(f"\n[info]Using model: {model_name}[/info]")
     console.print("\nType your security query to get started, or type /help for available commands.")
     console.print()
-    
+
     example_queries = [
         "What are the latest zero-day vulnerabilities in Apache Struts?",
         "How can organizations protect against Log4Shell vulnerabilities?",
@@ -617,25 +616,25 @@ async def interactive_mode(
         "How can I detect if my system has been compromised by a zero-day exploit?",
         "What security vulnerabilities affect Docker containers?",
     ]
-    
+
     last_query = None
     show_rag_info = show_rag  # Flag to control RAG information display
     show_execution_plan = show_plan  # Flag to control execution plan display
     auto_export = auto_export_md  # Flag to control auto Markdown export
-    
+
     while True:
         try:
             query = Prompt.ask("\n[bold cyan]Scout Agent[/bold cyan]")
-            
+
             # Process commands (starting with /)
             if query.startswith('/'):
                 cmd = query.lower().strip()
-                
+
                 # Exit commands
                 if cmd in ["/exit", "/quit", "/bye", "/q"]:
                     console.print("[info]Exiting Scout Agent CLI.[/info]")
                     break
-                    
+
                 # Help commands
                 elif cmd.startswith("/help"):
                     # Check if detailed help requested
@@ -644,51 +643,51 @@ async def interactive_mode(
                     else:
                         display_commands(detailed=False)
                     continue
-                    
+
                 # Example queries
                 elif cmd in ["/examples", "/example", "/ex"]:
                     console.print("\n[info]Example security queries:[/info]")
                     for i, example in enumerate(example_queries, 1):
                         console.print(f"  [suggestion]{i}. {example}[/suggestion]")
                     continue
-                
+
                 # Show agent structure
                 elif cmd in ["/agents", "/agent", "/structure", "/workflow"]:
                     display_agent_structure()
                     continue
-                    
+
                 # Query suggestions
                 elif cmd.startswith("/suggest"):
                     if not last_query:
                         console.print("[error]No previous query to suggest improvements for.[/error]")
                         continue
-                        
+
                     with Status("[info]Generating query suggestions...[/info]", spinner="dots"):
                         suggestions = suggest_query_improvements(last_query, model_name)
-                    
+
                     if suggestions:
                         console.print("\n[info]Suggested query improvements:[/info]")
                         suggestions_table = Table(box=box.SIMPLE, show_header=False)
                         suggestions_table.add_column("", style="suggestion")
-                        
+
                         for i, suggestion in enumerate(suggestions, 1):
                             suggestions_table.add_row(f"{i}. {suggestion}")
-                            
+
                         console.print(Panel(suggestions_table, title="Query Suggestions", border_style="yellow"))
                     else:
                         console.print("[error]Could not generate suggestions.[/error]")
                     continue
-                
+
                 # Enhance last query
                 elif cmd.startswith("/enhance"):
                     if not last_query:
                         console.print("[error]No previous query to enhance.[/error]")
                         continue
-                    
+
                     # Enhance the query
                     with Status("[info]Enhancing your query...[/info]", spinner="dots"):
                         enhanced_query = await enhance_query(last_query, model_name)
-                    
+
                     if enhanced_query and enhanced_query != last_query:
                         console.print("\n[info]Enhanced query for better results:[/info]")
                         console.print(Panel(
@@ -696,7 +695,7 @@ async def interactive_mode(
                             title="Query Enhancement",
                             border_style="yellow"
                         ))
-                        
+
                         # Ask if they want to use this query now
                         use_now = Prompt.ask("Process this enhanced query now?", choices=["y", "n"], default="n")
                         if use_now.lower() == "y":
@@ -708,17 +707,17 @@ async def interactive_mode(
                                 show_rag=show_rag_info,
                                 show_plan=show_execution_plan
                             )
-                            
+
                             if response:
                                 # The formatted output is already displayed in process_query if show_agent_outputs=True
-                                
+
                                 # Display the final response with markdown formatting
                                 console.print("\n[bold green]Agent Response:[/bold green]")
                                 console.print(Panel(Markdown(response), title="[bold]Final Analysis[/bold]", border_style="green", expand=False))
                     else:
                         console.print("[info]Could not further enhance the query.[/info]")
                     continue
-                    
+
                 # Debug toggle
                 elif cmd == "/debug":
                     # Toggle debug mode
@@ -730,7 +729,7 @@ async def interactive_mode(
                         set_log_level(debug=True, verbose=False)
                         console.print("[info]Debug mode enabled[/info]")
                     continue
-                
+
                 # Verbose toggle
                 elif cmd == "/verbose":
                     # Toggle verbose mode
@@ -742,21 +741,21 @@ async def interactive_mode(
                         set_log_level(debug=False, verbose=True)
                         console.print("[info]Verbose mode enabled[/info]")
                     continue
-                
+
                 # Toggle RAG information display
                 elif cmd == "/rag":
                     show_rag_info = not show_rag_info
                     status_message = "enabled" if show_rag_info else "disabled"
                     console.print(f"[info]RAG information display {status_message}[/info]")
                     continue
-                    
+
                 # Toggle execution plan display
                 elif cmd == "/plan":
                     show_execution_plan = not show_execution_plan
                     status_message = "enabled" if show_execution_plan else "disabled"
                     console.print(f"[info]Execution plan display {status_message}[/info]")
                     continue
-                    
+
                 # Export results to PDF
                 elif cmd.startswith("/export"):
                     # Toggle auto-export if specified
@@ -765,26 +764,26 @@ async def interactive_mode(
                         status_message = "enabled" if auto_export else "disabled"
                         console.print(f"[info]Automatic Markdown export {status_message}[/info]")
                         continue
-                        
+
                     if last_query is None:
                         console.print("[error]No query has been processed yet.[/error]")
                         continue
-                        
+
                     # Check if we have results to export
                     if "final_response" not in locals() or not final_response or "agent_outputs" not in locals() or not agent_outputs:
                         console.print("[error]No results available to export.[/error]")
                         continue
-                    
+
                     # Check if Markdown export is supported
                     if not markdown_export_supported:
                         console.print("[md.error]Markdown export not available.[/md.error]")
                         continue
-                        
+
                     # Include sources by default, unless explicitly disabled
                     include_sources = True
                     if "no-sources" in cmd or "nosources" in cmd:
                         include_sources = False
-                    
+
                     # Export to Markdown
                     from src.apps.markdown_utils import export_results_to_markdown
                     export_results_to_markdown(
@@ -795,7 +794,7 @@ async def interactive_mode(
                         console=console
                     )
                     continue
-                    
+
                 # Clear screen
                 elif cmd == "/clear":
                     console.clear()
@@ -803,23 +802,23 @@ async def interactive_mode(
                     console.print()
                     display_commands()
                     continue
-                
+
                 # Unknown command
                 else:
                     console.print(f"[error]Unknown command: {cmd}[/error]")
                     console.print("[info]Type /help to see available commands[/info]")
                     continue
-            
+
             # Empty query
             if not query.strip():
                 continue
-                
+
             # Save query for suggestion feature
             last_query = query
-            
+
             # QUERY ENHANCEMENT STEP - Improve query before sending to agents
             enhanced_query = await enhance_query(query, model_name)
-            
+
             # If the query was enhanced, show the enhancement and ask for confirmation
             if enhanced_query != query:
                 console.print("\n[info]I've enhanced your query for better results:[/info]")
@@ -828,10 +827,10 @@ async def interactive_mode(
                     title="Query Enhancement",
                     border_style="yellow"
                 ))
-                
+
                 # Ask for user confirmation or modification
                 confirmation = Prompt.ask("\n[bold cyan]Use this enhanced query?[/bold cyan] ([green]y[/green]/[red]n[/red]/[yellow]edit[/yellow])")
-                
+
                 if confirmation.lower() in ["y", "yes"]:
                     # Use the enhanced query
                     query_to_process = enhanced_query
@@ -848,7 +847,7 @@ async def interactive_mode(
             else:
                 # No enhancement, use original
                 query_to_process = query
-                
+
             # Process the query (enhanced or original) with display settings
             # Response will be a tuple of (final_response, agent_outputs) or None if error
             result = await process_query(
@@ -858,18 +857,18 @@ async def interactive_mode(
                 show_rag=show_rag_info,
                 show_plan=show_execution_plan
             )
-            
+
             if result:
                 # Unpack the result tuple
                 final_response, agent_outputs = result
-                
+
                 # Display the final response with markdown formatting
                 console.print("\n[bold green]Agent Response:[/bold green]")
                 console.print(Panel(Markdown(final_response), title="[bold]Final Analysis[/bold]", border_style="green", expand=False))
-                
+
                 # Suggest improvements
                 console.print("\n[info]Type /suggest to get query improvement suggestions[/info]")
-                
+
                 # Auto-export to Markdown if enabled
                 if auto_export and markdown_export_supported:
                     console.print("\n[info]Auto-exporting results to Markdown...[/info]")
@@ -881,7 +880,7 @@ async def interactive_mode(
                         include_sources=True,
                         console=console
                     )
-                
+
         except KeyboardInterrupt:
             # Ask for confirmation to exit
             console.print("\n[info]Ctrl+C detected. Do you want to exit?[/info]")
@@ -908,104 +907,105 @@ async def main():
     """Run the agent system CLI."""
     # Set up signal handlers for graceful exit
     import signal
-    
+
     # Define the handler function
     def signal_handler(sig, frame):
         console.print("\n[bold red]Ctrl+C pressed. Exiting...[/bold red]")
         sys.exit(0)
-    
+
     # Register the signal handler for SIGINT (Ctrl+C)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     parser = argparse.ArgumentParser(
         description="Zero-Day Scout Agent CLI for security vulnerability research",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    
+
     parser.add_argument(
         "--query", "-q", 
         type=str, 
         default=None,
         help="Security query to process (if not provided, runs in interactive mode)"
     )
-    
+
     parser.add_argument(
-        "--model", "-m", 
-        type=str, 
-        default="gemini-2.5-flash-preview-04-17",
-        help="Model to use for the agents"
+        "--model",
+        "-m",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Model to use for the agents",
     )
-    
+
     parser.add_argument(
         "--enhance", "-e",
         action="store_true",
         help="Automatically enhance the query before processing"
     )
-    
+
     parser.add_argument(
         "--no-enhancement", "-n",
         action="store_true",
         help="Skip query enhancement even in interactive mode"
     )
-    
+
     parser.add_argument(
         "--verbose", "-v", 
         action="store_true", 
         help="Enable verbose output"
     )
-    
+
     parser.add_argument(
         "--debug", "-d", 
         action="store_true", 
         help="Enable debug logging"
     )
-    
+
     parser.add_argument(
         "--no-rag", 
         action="store_true", 
         help="Disable RAG match information display"
     )
-    
+
     parser.add_argument(
         "--no-plan", 
         action="store_true", 
         help="Disable execution plan display before processing"
     )
-    
+
     parser.add_argument(
         "--export-md", 
         action="store_true", 
         help="Automatically export results to Markdown"
     )
-    
+
     parser.add_argument(
         "--no-sources", 
         action="store_true", 
         help="Exclude research sources from Markdown export"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set log level
     set_log_level(debug=args.debug, verbose=args.verbose)
-    
+
     # Load environment variables
     load_dotenv()
-    
+
     try:
         if args.query:
             # Process a single query
             # Display logo for consistency
             display_logo()
             console.print()
-            
+
             query_to_process = args.query
-            
+
             # Enhance the query if requested
             if args.enhance and not args.no_enhancement:
                 console.print(f"\n[query]Original query: {args.query}[/query]")
                 enhanced_query = await enhance_query(args.query, args.model)
-                
+
                 if enhanced_query != args.query:
                     console.print("\n[info]Enhanced query for better results:[/info]")
                     console.print(Panel(
@@ -1014,7 +1014,7 @@ async def main():
                         border_style="yellow"
                     ))
                     query_to_process = enhanced_query
-            
+
             # Process the query (original or enhanced) with display settings (unless disabled)
             response = await process_query(
                 query_to_process, 
@@ -1023,24 +1023,24 @@ async def main():
                 show_rag=not args.no_rag,
                 show_plan=not args.no_plan
             )
-            
+
             if response:
                 # Display the result in a formatted way
                 console.print("\n[bold green]Agent Response:[/bold green]")
-                
+
                 # Get result with agent outputs
                 try:
                     # Initialize the orchestrator agent for accessing outputs
                     orchestrator = OrchestratorAgent(model_name=args.model)
-                    
+
                     # Process the query to get all agent outputs
                     result = await orchestrator.process_query(query_to_process)
                     final_response = result["final_response"]
                     agent_outputs = result["agent_outputs"]
-                    
+
                     # Display individual agent outputs
                     console.print("\n[bold]Agent Workflow Results:[/bold]")
-                    
+
                     # Planner output
                     if agent_outputs.get("security_planner", {}).get("output"):
                         planner_md = await format_output_markdown(agent_outputs["security_planner"]["output"], "planner")
@@ -1050,18 +1050,18 @@ async def main():
                             border_style="cyan",
                             expand=False
                         ))
-                    
+
                     # Researcher output with RAG information
                     if agent_outputs.get("security_researcher", {}).get("output"):
                         researcher_md = await format_output_markdown(agent_outputs["security_researcher"]["output"], "researcher")
-                        
+
                         # Parse for research sources information if present
                         if "## Research Sources" in researcher_md:
                             # Split the research findings from the sources information
                             parts = researcher_md.split("## Research Sources", 1)
                             research_content = parts[0].strip()
                             sources_section = "## Research Sources" + parts[1]
-                            
+
                             # Display research findings
                             console.print(Panel(
                                 Markdown(research_content),
@@ -1069,7 +1069,7 @@ async def main():
                                 border_style="blue",
                                 expand=False
                             ))
-                            
+
                             # Display research sources information in a highlighted panel only if enabled
                             if not args.no_rag:
                                 console.print(Panel(
@@ -1086,11 +1086,11 @@ async def main():
                                 border_style="blue",
                                 expand=False
                             ))
-                    
+
                     # Display final response
                     formatted_md = await format_output_markdown(final_response, "analyst")
                     console.print(Panel(Markdown(formatted_md), title="[bold]Final Analysis[/bold]", border_style="green", expand=False))
-                    
+
                     # Export to Markdown if requested
                     if args.export_md and markdown_export_supported:
                         console.print("\n[info]Exporting results to Markdown...[/info]")
@@ -1108,7 +1108,7 @@ async def main():
                         console.print(f"[yellow]Error accessing agent outputs: {e}[/yellow]")
                     formatted_md = await format_output_markdown(response, "analyst")
                     console.print(Panel(Markdown(formatted_md), title="[bold]Analysis[/bold]", border_style="green", expand=False))
-                
+
         else:
             # Run in interactive mode with all flags
             await interactive_mode(
@@ -1118,7 +1118,7 @@ async def main():
                 show_plan=not args.no_plan,
                 auto_export_md=args.export_md
             )
-            
+
     except KeyboardInterrupt:
         console.print("\n[bold red]Process interrupted by user. Exiting.[/bold red]")
         return 0
@@ -1128,7 +1128,7 @@ async def main():
             import traceback
             console.print(Panel(traceback.format_exc(), title="[error]Error Details[/error]", border_style="red"))
         return 1
-        
+
     return 0
 
 

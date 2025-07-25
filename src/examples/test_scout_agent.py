@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger("scout-agent-test")
 
 
-async def process_security_query(query: str, model_name: str = "gemini-2.5-flash-preview-04-17"):
+async def process_security_query(query: str, model_name: str = "gemini-2.5-flash"):
     """
     Process a security query through the agent system.
     
@@ -41,14 +41,14 @@ async def process_security_query(query: str, model_name: str = "gemini-2.5-flash
     # Initialize the orchestrator agent
     print(f"\n🔍 Initializing agent system with model: {model_name}")
     orchestrator = OrchestratorAgent(model_name=model_name)
-    
+
     # Process the query
     print(f"\n🔄 Processing query: '{query}'")
     print("\n⏳ Running sequential agent workflow (planner -> researcher -> analyst)...\n")
-    
+
     # Execute the query processing workflow
     response = await orchestrator.process_query(query)
-    
+
     return response
 
 
@@ -59,20 +59,24 @@ async def main():
     parser.add_argument("--query", "-q", type=str, 
                       default="What are the latest zero-day vulnerabilities in log4j?",
                       help="Security query to process")
-    parser.add_argument("--model", "-m", type=str, 
-                      default="gemini-2.5-flash-preview-04-17",
-                      help="Model to use for the agents")
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Model to use for the agents",
+    )
     args = parser.parse_args()
-    
+
     # Load environment variables
     load_dotenv()
-    
+
     # Process the query
     print("\n===== Zero-Day Scout Agent System Demo =====")
-    
+
     try:
         response = await process_security_query(args.query, args.model)
-        
+
         # Display the result
         print("\n===== Agent System Response =====\n")
         print(response)

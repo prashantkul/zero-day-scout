@@ -29,26 +29,26 @@ async def test_sequential_workflow():
     """Test the complete sequential agent workflow."""
     # Initialize the agent
     print("\n🔄 Initializing the Orchestrator Agent...")
-    agent = OrchestratorAgent(model_name="gemini-2.5-flash-preview-04-17")
-    
+    agent = OrchestratorAgent(model_name="gemini-2.5-flash")
+
     # Test query
     query = "What are the latest zero-day vulnerabilities in web browsers?"
     print(f"\n🔍 Testing with query: '{query}'")
-    
+
     # Process the query
     print("\n⏳ Starting sequential workflow execution...")
     print("\n--- This should execute: Planner -> Researcher -> Analyst ---\n")
-    
+
     try:
         # Execute the query
         response = await agent.process_query(query)
-        
+
         # Print the result
         print("\n✅ Sequential workflow execution completed!")
         print("\n--- Final Response ---")
         print(response)
         print("\n--- End of Response ---")
-        
+
     except Exception as e:
         print(f"\n❌ Error in sequential workflow: {str(e)}")
         import traceback
