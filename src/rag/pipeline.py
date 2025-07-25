@@ -1084,13 +1084,34 @@ class VertexRagPipeline:
                 else:
                     # Try to access individual contexts by index if it supports item access
                     try:
-                        # Try up to 10 items (arbitrary limit)
-                        for i in range(10):
-                            try:
-                                context = contexts_obj[i]
+                        # First check if it's directly iterable
+                        try:
+                            for context in contexts_obj:
                                 results.append(context)
-                            except (IndexError, TypeError):
-                                break
+                        except TypeError:
+                            # If not iterable, try indexed access with proper bounds checking
+                            try:
+                                # Check if it has a length or size
+                                max_items = 10  # default limit
+                                if hasattr(contexts_obj, '__len__'):
+                                    max_items = min(len(contexts_obj), 10)
+                                elif hasattr(contexts_obj, 'size'):
+                                    max_items = min(contexts_obj.size, 10)
+                                
+                                # Try up to max_items with proper bounds checking
+                                for i in range(max_items):
+                                    try:
+                                        context = contexts_obj[i]
+                                        results.append(context)
+                                    except (IndexError, TypeError, KeyError):
+                                        break
+                            except Exception:
+                                # Final fallback - try to convert to list if possible
+                                try:
+                                    contexts_list = list(contexts_obj)
+                                    results.extend(contexts_list)
+                                except Exception:
+                                    pass
                     except Exception:
                         pass
 
@@ -1103,7 +1124,10 @@ class VertexRagPipeline:
                 print(f"Warning: Could not find expected contexts in response")
 
         except Exception as e:
+            logger.error(f"Error processing response: {e}")
             print(f"Error processing response: {e}")
+            # Return empty results instead of crashing
+            results = []
 
         print(f"Found {len(results)} results")
         return results

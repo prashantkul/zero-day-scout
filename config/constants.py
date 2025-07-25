@@ -8,14 +8,16 @@ DEFAULT_LOCATION = "us-central1"
 
 # RAG Engine settings
 DEFAULT_CORPUS_NAME = "scout_corpus"
-DEFAULT_EMBEDDING_MODEL = "gemini-embedding-exp-03-07"
-DEFAULT_GENERATIVE_MODEL = "gemini-2.5-flash-preview-04-17"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
+DEFAULT_GENERATIVE_MODEL = "gemini-2.5-flash"
 
 # Retrieval settings
 DEFAULT_TOP_K = 5
 DEFAULT_DISTANCE_THRESHOLD = 0.6
 DEFAULT_TEMPERATURE = 0.2
-DEFAULT_RERANKER_MODEL = "gemini-2.5-flash-preview-04-17"  # Using the same model as generative by default
+DEFAULT_RERANKER_MODEL = (
+    "gemini-2.5-flash"  # Using the same model as generative by default
+)
 DEFAULT_USE_RERANKING = False  # Disabled by default until full Discovery Engine permissions are set up
 
 # Document chunking settings

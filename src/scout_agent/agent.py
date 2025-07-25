@@ -1,4 +1,3 @@
-\
 """
 Agent classes for the Zero-Day Scout Agentic RAG system.
 
@@ -69,7 +68,7 @@ class OrchestratorAgent:
         self.planner_agent = PlannerAgent(model_name)
         self.research_agent = ResearchAgent(model_name) # Basic initialization
         self.analysis_agent = AnalysisAgent(model_name)
-        
+
         self.root_agent = None # SequentialAgent, will be created after async setup
 
     async def _initialize_sub_agents_and_create_sequence(self):
@@ -110,14 +109,14 @@ class OrchestratorAgent:
             description="Executes a sequence of planning, research, and analysis for zero-day vulnerabilities"
         )
         logger.info("Orchestrator: SequentialAgent (root_agent) created/updated with current sub-agent configurations.")
-            
+
     async def cleanup_resources(self):
         """Clean up all resources used by the agents.
         
         This should be called when processing is complete to ensure proper resource cleanup.
         """
         logger.info("Cleaning up Orchestrator resources")
-        
+
         # Clean up resources for research, CVE, and analysis agents
         # Note: self.cve_agent is the CveLookupAgent class instance, not an LlmAgent
         # Its cleanup is called directly.
@@ -126,7 +125,7 @@ class OrchestratorAgent:
             ("analysis", self.analysis_agent)
         ]
         if self.cve_agent: # Add CveLookupAgent itself if it exists
-             agent_instances_to_cleanup.append(("cve_lookup_service", self.cve_agent))
+            agent_instances_to_cleanup.append(("cve_lookup_service", self.cve_agent))
 
         for agent_name, agent_obj in agent_instances_to_cleanup:
             if hasattr(agent_obj, 'cleanup') and callable(agent_obj.cleanup):
@@ -141,9 +140,9 @@ class OrchestratorAgent:
                     logger.warning(f"Error cleaning up {agent_name} agent resources: {e}")
                     import traceback
                     logger.warning(f"Cleanup error traceback: {traceback.format_exc()}")
-        
+
         logger.info("Orchestrator resource cleanup complete")
-    
+
     async def process_query(self, query: str, timeout: float = 300.0) -> dict:
         """
         Process a user query through the complete agent workflow.
@@ -160,25 +159,25 @@ class OrchestratorAgent:
         # Ensure agents are initialized and sequence is created
         if not self.root_agent:
             await self._initialize_sub_agents_and_create_sequence()
-        
+
         if not self.root_agent: # Still not there after attempt
             logger.error("Orchestrator: Root sequential agent could not be initialized. Aborting.")
             return {
                 "final_response": "Critical error: Orchestrator failed to initialize. Please check logs.", 
                 "agent_outputs": {}
             }
-        
+
         # Check if the query contains CVE-related terms to log a hint
         if "CVE-" in query or "cve-" in query or "Log4Shell" in query or "log4shell" in query:
             logger.info("Query contains CVE-related terms. Planner should instruct researcher to use CVE specialist tool.")
-        
+
         # Create a session for processing the query
         # session_service = InMemorySessionService() # Not needed if runner creates its own
         # user_id = "user_1"
         # session_id = "session_1"
         # session = session_service.create_session(
-        #     app_name="scout_agent", 
-        #     user_id=user_id, 
+        #     app_name="scout_agent",
+        #     user_id=user_id,
         #     session_id=session_id
         # )
 
@@ -187,17 +186,19 @@ class OrchestratorAgent:
             agent=self.root_agent # Use the fully constructed SequentialAgent
         )
 
+        # Session for the runner - use runner's create_session method
         # Session for the runner
         session = runner.session_service.create_session(
-            app_name=runner.app_name, user_id="test_user" # Consider making user_id dynamic
+            app_name=runner.app_name,
+            user_id="test_user",  # Consider making user_id dynamic
         )
-        
+
         logger.info(f"Setting timeout of {timeout} seconds for query processing")
 
         content = UserContent(parts=[Part(text=query)])
 
         logger.info(f"Processing query with sequential agent: {query}")
-        
+
         final_response = ""
         agent_outputs = {
             "security_planner": {"output": "", "role": "planner"},
@@ -205,27 +206,27 @@ class OrchestratorAgent:
             "security_analyst": {"output": "", "role": "analyst"},
             "security_orchestrator": {"output": "", "role": "orchestrator"}
         }
-        
+
         try:
             import queue
             import threading
             response_queue = queue.Queue()
-            
+
             def agent_thread_worker():
                 try:
                     thread_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(thread_loop)
-                    
+
                     thread_final_response = ""
                     thread_agent_outputs = {k: dict(v) for k, v in agent_outputs.items()}
-                    
+
                     try:
                         for event in runner.run(
                             user_id=session.user_id, session_id=session.id, new_message=content
                         ):
                             if not hasattr(event, 'content') or not event.content or not event.content.parts:
                                 continue
-                            
+
                             # Ensure we only collect actual strings, filtering out None values from part.text
                             text_parts = []
                             for part in event.content.parts:
@@ -238,32 +239,32 @@ class OrchestratorAgent:
                                 #     logger.info(f"Thread received a part with None text from {getattr(event, 'author', 'unknown')}")
 
                             text = "\\n".join(text_parts) if text_parts else ""
-                            
+
                             author = getattr(event, 'author', None)
                             if author:
                                 # Adjust for potentially renamed research agent
                                 current_researcher_name = self.research_agent.agent.name 
                                 if author == current_researcher_name and "security_researcher" in thread_agent_outputs:
-                                     author_key = "security_researcher" # Log under consistent key
+                                    author_key = "security_researcher"  # Log under consistent key
                                 elif author in thread_agent_outputs:
-                                     author_key = author
+                                    author_key = author
                                 else:
-                                     author_key = "security_orchestrator" # Default if author not in predefined keys
+                                    author_key = "security_orchestrator"  # Default if author not in predefined keys
 
                                 logger.info(f"Thread received output from agent: {author} (logging as {author_key})")
                                 thread_agent_outputs[author_key]["output"] = text
                                 response_queue.put(("agent_output", (author_key, text)))
-                            
+
                             thread_final_response = text # Last message is considered final for now
-                    
+
                     except Exception as run_error:
                         logger.error(f"Error during agent.run() in thread: {run_error}", exc_info=True)
                         response_queue.put(("error", str(run_error)))
                         return
-                    
+
                     logger.info("Thread completed successfully with final response")
                     response_queue.put(("final", (thread_final_response, thread_agent_outputs)))
-                    
+
                 except Exception as thread_error:
                     logger.error(f"Thread exception: {thread_error}", exc_info=True)
                     response_queue.put(("error", str(thread_error)))
@@ -276,20 +277,20 @@ class OrchestratorAgent:
             worker_thread = threading.Thread(target=agent_thread_worker)
             worker_thread.daemon = True
             worker_thread.start()
-            
+
             import time
             start_time = time.time()
-            
+
             processing_complete = False
             while time.time() - start_time < timeout:
                 if not worker_thread.is_alive() and response_queue.empty():
                     logger.info("Worker thread has completed and queue is empty.")
                     processing_complete = True
                     break
-                    
+
                 try:
                     msg_type, msg_data = response_queue.get(timeout=0.5) # Add timeout to get
-                    
+
                     if msg_type == "agent_output":
                         agent_name, text = msg_data
                         agent_outputs[agent_name]["output"] = text
@@ -305,13 +306,12 @@ class OrchestratorAgent:
                         break 
                 except queue.Empty:
                     continue # Loop and check thread status or timeout
-            
-            if not processing_complete and worker_thread.is_alive():
-                 logger.warning(f"Thread processing timed out after {timeout} seconds")
-                 final_response = "I apologize, but the query processing timed out."
-                 # Attempt to join the thread briefly, but don't hang indefinitely
-                 worker_thread.join(timeout=1.0)
 
+            if not processing_complete and worker_thread.is_alive():
+                logger.warning(f"Thread processing timed out after {timeout} seconds")
+                final_response = "I apologize, but the query processing timed out."
+                # Attempt to join the thread briefly, but don't hang indefinitely
+                worker_thread.join(timeout=1.0)
 
             # If thread finished but we missed the 'final' message due to timing
             if not final_response and not worker_thread.is_alive():
@@ -335,21 +335,21 @@ class OrchestratorAgent:
                     if agent_outputs["security_analyst"]['output']:
                         final_response = agent_outputs["security_analyst"]['output']
                     elif agent_outputs["security_researcher"]['output']:
-                         final_response = agent_outputs["security_researcher"]['output']
+                        final_response = agent_outputs["security_researcher"]["output"]
                     else:
-                         final_response = "Processing completed, but no definitive final response was captured."
+                        final_response = "Processing completed, but no definitive final response was captured."
 
         except Exception as e:
             logger.error(f"Error during query processing: {e}", exc_info=True)
             final_response = f"I apologize, but there was an error during query processing: {str(e)}"
-            
+
         logger.info("Query processing completed")
-            
+
         try:
             await self.cleanup_resources()
         except Exception as cleanup_error:
             logger.warning(f"Error during final cleanup: {cleanup_error}", exc_info=True)
-        
+
         return {
             "final_response": final_response,
             "agent_outputs": agent_outputs
@@ -501,4 +501,3 @@ try:
 
 except Exception as e:
     logger.error(f"Failed to initialize default root_agent: {e}", exc_info=True)
-
