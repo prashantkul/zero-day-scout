@@ -122,7 +122,7 @@ class CveLookupAgent:
     vulnerability information from official CVE databases.
     """
 
-    def __init__(self, model_name: str = "gemini-2.5-flash-preview-04-17"):
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         """
         Initialize the CVE Lookup Agent.
         
@@ -328,10 +328,14 @@ class CveLookupAgent:
                 logger.info(f"CVE_AGENT.lookup(): Determined tool: '{tool_name}' for DB status.")
             else:
                 if 'cve-' in query_lower:
-                     logger.warning(f"CVE_AGENT.lookup(): Query contains 'cve-' but no specific ID matched regex. Defaulting or erroring might be better.")
-                     tool_name = "vul_last_cves"
-                     tool_params = {}
-                     logger.info(f"CVE_AGENT.lookup(): Defaulting to '{tool_name}' due to ambiguous CVE query.")
+                    logger.warning(
+                        f"CVE_AGENT.lookup(): Query contains 'cve-' but no specific ID matched regex. Defaulting or erroring might be better."
+                    )
+                    tool_name = "vul_last_cves"
+                    tool_params = {}
+                    logger.info(
+                        f"CVE_AGENT.lookup(): Defaulting to '{tool_name}' due to ambiguous CVE query."
+                    )
                 else:
                     tool_name = "vul_last_cves" # Default for non-specific queries
                     tool_params = {}
@@ -353,7 +357,7 @@ class CveLookupAgent:
             for content_part in mcp_result.content:
                 if hasattr(content_part, 'text') and content_part.text is not None:
                     text_parts.append(content_part.text)
-            
+
             if not text_parts:
                 logger.warning(f"CVE_AGENT.lookup(): No non-None text parts found in MCP result for '{tool_name}'. Full content: {mcp_result.content}")
                 return f"No usable text content received from CVE tool '{tool_name}'."
@@ -394,7 +398,7 @@ class CveLookupAgent:
                             cvss_data = metric_set["cvssV3_0"]
                             cvss_v3_score_str = str(cvss_data.get("baseScore", "Not available"))
                             cvss_v3_vector_str = cvss_data.get("vectorString", "")
-                    
+
                     if cvss_v3_score_str != "Not available":
                         formatted_output += f"**CVSSv3 Score:** {cvss_v3_score_str}"
                         if cvss_v3_vector_str:
@@ -404,14 +408,16 @@ class CveLookupAgent:
                         # Check for older top-level CVSS field as a fallback (less likely for JSON 5.1)
                         cvss_score_legacy = json_data.get('cvss')
                         if cvss_score_legacy is not None:
-                             formatted_output += f"**CVSS Score (legacy):** {cvss_score_legacy}\n\n"
+                            formatted_output += (
+                                f"**CVSS Score (legacy):** {cvss_score_legacy}\n\n"
+                            )
                         else:
-                             formatted_output += f"**CVSS Score:** Not available\n\n"
+                            formatted_output += f"**CVSS Score:** Not available\n\n"
 
                     published_date = cve_metadata.get("datePublished")
                     if published_date:
                         formatted_output += f"**Published:** {published_date}\n"
-                    
+
                     date_updated = cve_metadata.get("dateUpdated")
                     if date_updated:
                         formatted_output += f"**Last Updated (Metadata):** {date_updated}\n"
@@ -424,9 +430,9 @@ class CveLookupAgent:
                             url = ref_item.get("url")
                             name = ref_item.get("name")
                             if url:
-                                 formatted_output += f"- {url}\n"
+                                formatted_output += f"- {url}\n"
                             elif name:
-                                 formatted_output += f"- (Name: {name})\n" # Indicate if it's just a name
+                                formatted_output += f"- (Name: {name})\n"  # Indicate if it's just a name
                         if len(references_list) > 5:
                             formatted_output += f"- ...and {len(references_list) - 5} more.\n"
                         formatted_output += "\n"
@@ -459,7 +465,7 @@ class CveLookupAgent:
                         if len(affected_list) > 2:
                             formatted_output += "- ...and more affected products/versions.\n"
                         formatted_output += "\n"
-                        
+
                     problem_types = cna_container.get("problemTypes", [])
                     if problem_types and isinstance(problem_types, list) and len(problem_types) > 0:
                         cwe_ids = []

@@ -72,7 +72,7 @@ This will start the interactive CLI mode with a user-friendly interface.
 python src/apps/scout_cli.py --query "What are the latest zero-day vulnerabilities in Apache Struts?"
 
 # Specify a different model
-python src/apps/scout_cli.py --model "gemini-2.5-pro-preview-04-17"
+python src/apps/scout_cli.py --model "gemini-2.5-flash-pro-preview-04-17"
 
 # Automatically enhance the query
 python src/apps/scout_cli.py --enhance
@@ -156,7 +156,7 @@ Key environment variables include:
 - `GOOGLE_CLOUD_LOCATION` - Cloud region (e.g., us-central1)
 - `GOOGLE_APPLICATION_CREDENTIALS` - Path to service account key file
 - `RAG_CORPUS_NAME` - Name of your RAG corpus
-- `RAG_GENERATIVE_MODEL` - Model to use (e.g., gemini-2.5-flash-preview-04-17)
+- `RAG_GENERATIVE_MODEL` - Model to use (e.g., gemini-2.5-flash)
 
 ## Troubleshooting
 

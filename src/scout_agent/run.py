@@ -39,8 +39,8 @@ class ScoutAgentRunner:
     This class handles initialization and execution of the agent
     for security vulnerability research using InMemoryRunner.
     """
-    
-    def __init__(self, model_name: str = "gemini-2.5-flash-preview-04-17"):
+
+    def __init__(self, model_name: str = "gemini-2.5-flash"):
         """
         Initialize the Scout Agent runner.
         
@@ -48,25 +48,25 @@ class ScoutAgentRunner:
             model_name: The model to use for the agent
         """
         self.model_name = model_name
-        
+
         # Initialize the orchestrator agent
         self.orchestrator = OrchestratorAgent(model_name=self.model_name)
-        
+
         # App name for this application
         self.app_name = "scout_agent"
-        
+
         # Create a session service for conversation state management
         self.session_service = InMemorySessionService()
-        
+
         # Create the Runner for the agent
         self.runner = Runner(
             agent=self.orchestrator.root_agent,
             app_name=self.app_name,
             session_service=self.session_service
         )
-        
+
         logger.info(f"Initialized Scout Agent Runner with model: {model_name}")
-    
+
     def create_session(self, user_id: str = None, session_id: str = None):
         """
         Create a new session or return an existing one.
@@ -81,17 +81,17 @@ class ScoutAgentRunner:
         # Generate IDs if not provided
         user_id = user_id or f"user_{uuid.uuid4().hex[:8]}"
         session_id = session_id or f"session_{uuid.uuid4().hex[:8]}"
-        
+
         # Create or get the session
         session = self.session_service.create_session(
             app_name=self.app_name,
             user_id=user_id,
             session_id=session_id
         )
-        
+
         logger.info(f"Created session: user={user_id}, session={session_id}")
         return session
-    
+
     async def process_query(self, query: str, user_id: str = None, session_id: str = None):
         """
         Process a security query with the agent.
@@ -109,12 +109,12 @@ class ScoutAgentRunner:
             session = self.create_session(user_id, session_id)
             user_id = session.user_id
             session_id = session.id
-        
+
         logger.info(f"Processing query for user={user_id}, session={session_id}")
-        
+
         # Delegate directly to the OrchestratorAgent for sequential processing
         response = await self.orchestrator.process_query(query)
-        
+
         return response
 
 
@@ -260,9 +260,13 @@ async def main():
     parser = argparse.ArgumentParser(description="Run the Zero-Day Scout agent system")
     parser.add_argument("--query", "-q", type=str, default=None,
                       help="Security query to process (if not provided, runs in interactive mode)")
-    parser.add_argument("--model", "-m", type=str,
-                      default="gemini-2.5-flash-preview-04-17",
-                      help="Model to use for the agent")
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default="gemini-2.5-flash",
+        help="Model to use for the agent",
+    )
     parser.add_argument("--user", "-u", type=str, default=None,
                       help="User ID (generated if not provided)")
     parser.add_argument("--session", "-s", type=str, default=None,
@@ -274,30 +278,30 @@ async def main():
     parser.add_argument("--debug", "-d", action="store_true",
                       help="Enable debug logging")
     args = parser.parse_args()
-    
+
     # Set debug logging if requested
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.setLevel(logging.DEBUG)
-    
+
     # Load environment variables
     load_dotenv()
-    
+
     try:
         # Initialize the runner
         runner = ScoutAgentRunner(model_name=args.model)
-        
+
         # Create a session if needed
         session = runner.create_session(args.user, args.session)
         user_id = session.user_id
         session_id = session.id
-        
+
         if args.query:
             # Process a single query
             response = await call_agent_async(
                 args.query, runner.runner, user_id, session_id, verbose=args.verbose
             )
-            
+
         elif args.script:
             # Run a sample script of queries
             sample_queries = [
@@ -306,18 +310,18 @@ async def main():
                 "Tell me about the Log4Shell vulnerability in detail"
             ]
             await run_conversation(runner.runner, user_id, session_id, sample_queries, verbose=args.verbose)
-            
+
         else:
             # Run in interactive mode
             await interactive_mode(runner, verbose=args.verbose)
-    
+
     except Exception as e:
         print(f"\nError: {str(e)}")
         if args.debug:
             import traceback
             print(traceback.format_exc())
         return 1
-    
+
     return 0
 
 
