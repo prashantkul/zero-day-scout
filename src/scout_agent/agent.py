@@ -187,8 +187,9 @@ class OrchestratorAgent:
         )
 
         # Session for the runner - use runner's create_session method
-        # Session for the runner
-        session = runner.session_service.create_session(
+        # This returns coroutine on Debian, but fixing it so it works on both - Mac and Debian. 
+        # Store the coroutine for later
+        session_result = runner.session_service.create_session(
             app_name=runner.app_name,
             user_id="test_user",  # Consider making user_id dynamic
         )
@@ -216,6 +217,13 @@ class OrchestratorAgent:
                 try:
                     thread_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(thread_loop)
+
+                    # Now await the session creation
+                    # Handle both coroutine (Linux) and direct object (Mac)
+                    if asyncio.iscoroutine(session_result):
+                        session = thread_loop.run_until_complete(session_result)
+                    else:
+                        session = session_result
 
                     thread_final_response = ""
                     thread_agent_outputs = {k: dict(v) for k, v in agent_outputs.items()}
