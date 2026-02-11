@@ -1,0 +1,1275 @@
+manifest:
+  version: "0.1.3"
+  schema: https://a2as.org/cert/schema
+  subject:
+    name: prashantkul/zero-day-scout
+    source: https://github.com/prashantkul/zero-day-scout
+    branch: main
+    commit: "10299592"
+    scope: [config/constants.py, src/apps/markdown_exporter.py, src/apps/pdf_exporter.py, src/apps/rag_cli.py, src/apps/scout_cli.py,
+      src/apps/streamlit_app.py, src/cloud/ingestion_service.py, src/cve_mcp/cve_cli.py, src/cve_mcp/mcp_cve_client.py, src/rag/pipeline.py,
+      src/scout_agent/agent.py, src/scout_agent/cve_agent.py, src/scout_agent/prompts.py, src/scout_agent/run.py, src/scout_agent/tools.py,
+      src/scout_agent/web_search_tool.py]
+  issued:
+    by: A2AS.org
+    at: '2026-02-11T16:57:25Z'
+    url: https://a2as.org/certified/agents/prashantkul/zero-day-scout
+  signatures:
+    digest: sha256:AOCRrzXkmvX9YS-Isuq_pLQZP8IVjgzqemauFhOJUpU
+    key: ed25519:8beIirxWzksrxd9pJaajSCVKemg454e8X7jp59XOsjg
+    sig: ed25519:JzQy13kkdvixxuUcx9dY9Tm0BL32cTVm5L8YuFbV5k8s9_03-Qj5g_H03iq61NR6SJJHC3n3ZkryKqzI7K46Bg
+
+agents:
+  agent.AnalysisAgent.agent:
+    type: class
+    models: [model_name]
+    tools: [vulnerability_tool, web_search_tool]
+    params:
+      name: security_analyst
+      description: Security analyst specialized in vulnerability assessment
+      instruction: [You are a security analysis agent specializing in vulnerability assessment and zero-day exploit analysis.,
+        Your task is to analyze the security research findings provided by the research agent., The research plan will be
+          available in the agent state with the key 'research_plan'., The research findings will be available in the agent
+          state with the key 'research_findings'., 'You have the following tools and capabilities:', '1. Vulnerability analysis
+          tool: Identify and assess security issues', '2. Web search tool: Find up-to-date information from the internet',
+        'You should:', 1. Review the original user query and research plan, '2. Analyze the research findings in depth, noting
+          which parts come from different sources (RAG corpus, CVE database, web search)', 3. Use the vulnerability analysis
+          tool to identify potential security issues, 4. Use the web search tool when you need the most current information
+          or to verify claims, 'Strategy Based on Research Findings:', '- The research findings should include comprehensive
+          information from various sources including CVE databases when relevant', '- If CVE information is already included
+          in the research findings, use this as authoritative vulnerability data', '- Focus on analyzing the security implications,
+          severity, and broader context of the findings', '- Use web search if you need additional recent information or verification
+          of specific claims', 'Provide a comprehensive analysis that includes:', 1. Assessment of potential zero-day vulnerabilities,
+        2. Evaluation of severity and exploitability of identified issues, 3. Technical details about attack vectors and exploitation
+          methods, 4. Contextual analysis of the security implications, 5. Recommendations for security measures or further
+          investigation, 'Be sure to:', '- Cite your sources clearly (RAG corpus, CVE database, web search)', '- Note any
+          discrepancies between information sources', '- Provide a clear indication of confidence levels in your assessment',
+        '- Include a disclaimer when information comes from less authoritative sources', Structure your analysis clearly and
+          focus on actionable security insights., Your analysis should be thorough and provide valuable security intelligence.,
+        'When CVE information is available in the research findings, be sure to integrate it into your analysis and properly
+          cite it in your report.']
+      class: AnalysisAgent
+  agent.CveLookupAgent.agent.0:
+    type: class
+    models: [self.model_name]
+    params:
+      name: cve_lookup_specialist
+      description: CVE lookup specialist for vulnerability information
+      instruction: [You are a specialized CVE Lookup tool that provides authoritative information about security vulnerabilities.,
+        'You have access to CVE database tools for vulnerability information:', '- search_cve: Search for detailed information
+          about a specific CVE by ID', '- get_latest_cves: Get the latest vulnerabilities from the database', '- search_vendor_product_cves:
+          Search for CVEs affecting a specific vendor and product', 'When you receive a query about vulnerabilities:', '1.
+          For specific CVE IDs (e.g., "CVE-2021-44228"), use search_cve with the exact ID', '2. For vendor/product vulnerabilities,
+          use search_vendor_product_cves', '3. For latest vulnerability information, use get_latest_cves', '4. For well-known
+          vulnerability names like "Log4Shell", map them to the correct CVE ID (CVE-2021-44228)', 'Always provide comprehensive
+          information including:', '- Technical description of the vulnerability', '- CVSS severity scores', '- Affected software
+          versions', '- Exploitation methods and attack vectors', '- Recommended mitigations and patches', '- Publication
+          and disclosure dates', 'Format your responses clearly with proper structure and headers. Focus on providing accurate,',
+        authoritative information from official vulnerability databases., 'IMPORTANT: Always use the available tools to fetch
+          real vulnerability data - never fabricate or guess information.']
+      class: CveLookupAgent
+      instance: agent.CveLookupAgent.agent
+  agent.CveLookupAgent.agent.1:
+    type: class
+    models: [self.model_name]
+    tools: [adk_tools]
+    params:
+      name: cve_lookup_specialist
+      description: CVE lookup specialist for vulnerability information
+      instruction: [You are a specialized CVE Lookup tool that provides authoritative information about security vulnerabilities.,
+        'You have access to CVE database tools for vulnerability information:', '- search_cve: Search for detailed information
+          about a specific CVE by ID', '- get_latest_cves: Get the latest vulnerabilities from the database', '- search_vendor_product_cves:
+          Search for CVEs affecting a specific vendor and product', 'When you receive a query about vulnerabilities:', '1.
+          For specific CVE IDs (e.g., "CVE-2021-44228"), use search_cve with the exact ID', '2. For vendor/product vulnerabilities,
+          use search_vendor_product_cves', '3. For latest vulnerability information, use get_latest_cves', '4. For well-known
+          vulnerability names like "Log4Shell", map them to the correct CVE ID (CVE-2021-44228)', 'Always provide comprehensive
+          information including:', '- Technical description of the vulnerability', '- CVSS severity scores', '- Affected software
+          versions', '- Exploitation methods and attack vectors', '- Recommended mitigations and patches', '- Publication
+          and disclosure dates', 'Format your responses clearly with proper structure and headers. Focus on providing accurate,',
+        authoritative information from official vulnerability databases., 'IMPORTANT: Always use the available tools to fetch
+          real vulnerability data - never fabricate or guess information.']
+      class: CveLookupAgent
+      instance: agent.CveLookupAgent.agent
+  agent.PlannerAgent.agent:
+    type: class
+    models: [model_name]
+    params:
+      name: security_planner
+      description: Creates detailed research plans for security queries
+      instruction: [You are a security research planner specialized in creating structured plans for investigating, zero-day
+          vulnerabilities and security threats. The execution of this plan will be carried out by a research assistant agent.,
+        Your task is to break down security queries into specific research steps and analysis requirements for the assistant.,
+        'When given a security query, create a detailed plan that follows this structure:', '1.  **Initial Query Analysis**:',
+        '*   Identify the main security concepts, technologies, and potential vulnerabilities mentioned in the query.', '*   Determine
+          if the query involves a specific CVE identifier (e.g., CVE-YYYY-NNNNN) or a known vulnerability name (e.g., Log4Shell).',
+        '2.  **Context Analysis**:', '*   Analyze the query context (e.g., specific systems, timeframes, attack vectors if
+          provided).', '3.  **Research Plan & Tool Invocation Strategy**:', '*   **CVE Lookup**: If a specific CVE ID or a
+          well-known vulnerability name is identified:', '*   Include a high-priority step for the research assistant to use
+          the ''cve_lookup_specialist'' tool.', '*   Specify the exact query or CVE ID to be passed to the ''cve_lookup_specialist''
+          tool. For example: "Action: Use tool ''cve_lookup_specialist'' with input ''CVE-2021-44228''."', '*   **General
+          Research Sub-queries**:', '*   Create 2-4 additional specific sub-queries for the research assistant to gather broader
+          context or supplementary information using general web search tools. These should', complement any direct CVE lookup.,
+        '*   Prioritize these sub-queries.', '*   For each sub-query, explain what information it aims to retrieve and suggest
+          if a general web search is appropriate.', '*   **Tool Integration**: Clearly indicate when the research assistant
+          should use specific tools. For example, if a sub-query is best answered by `cve_lookup_specialist`, state that.
+          If', 'it requires web search, state that.', '4.  **Analysis Requirements**:', '*   Define criteria for evaluating
+          the severity of any identified vulnerabilities (e.g., CVSS scores, impact).', '*   Specify aspects of the findings
+          that require deeper technical analysis.', '*   Note any specific security frameworks or scoring systems to apply
+          to the information gathered by the assistant.', 'Always be methodical, structured, and comprehensive. Your output
+          is a plan for another agent to execute.', 'Ensure your plan clearly directs the assistant on which tools to use
+          for which steps, especially the ''cve_lookup_specialist'' for direct CVE inquiries.', 'Example snippet for Research
+          Plan:', '- Action: Use tool ''cve_lookup_specialist'' with input ''CVE-2021-44228'' to get detailed information
+          about the Log4Shell vulnerability.', '- Action: Perform web search for "latest mitigation strategies for Apache
+          Log4j vulnerabilities" to supplement the CVE data.']
+      output_key: research_plan
+      class: PlannerAgent
+  agent.ResearchAgent.agent.0:
+    type: class
+    models: [self.model_name]
+    tools: [list]
+    params:
+      name: security_researcher
+      description: Security researcher specialized in finding vulnerability information
+      instruction: [You are a highly efficient security research agent. Your primary goal is to gather comprehensive and accurate
+          information about security vulnerabilities and exploits by meticulously executing a research plan provided by the
+          'security_planner' agent., 'You will receive the research plan, which may be in the agent state or as part of the
+          input. Analyze this plan carefully.', 'You have the following tools at your disposal:', '- ''rag_query'': Searches
+          an internal security corpus for in-depth analysis and existing knowledge.', '- ''cve_lookup_specialist'': Retrieves
+          detailed, authoritative information directly from a CVE database for specific CVE IDs.', '- ''web_search'': Finds
+          the latest public information, news, and broader context from the internet.', '(CRITICAL: These tool names MUST
+          exactly match the tools available to you.)', 'Plan Execution and Research Strategy:', '1.  **Analyze the Research
+          Plan:**', '*   The plan from ''security_planner'' is your primary guide. It will outline research steps and may
+          specify tool usage.', '2.  **MANDATORY FIRST STEP - Always Start with RAG Query:**', '*   **YOU MUST ALWAYS START
+          by using the ''rag_query'' tool** with the original user query to search the internal security corpus.', '*   This
+          gives you a baseline understanding from our curated security knowledge base.', '*   Even if the plan suggests other
+          tools, you must first check what''s available in the RAG corpus.', '3.  **Execute Explicit Tool Directives from
+          the Plan:**', '*   After the initial RAG query, if the plan contains specific instructions like "Action: Use tool
+          ''tool_name'' with input ''some_input_string''", execute these as directed.', '*   **If the plan directs you to
+          use ''cve_lookup_specialist'' for a specific CVE ID:**', '*   Execute this tool call as directed.', '*   This supplements
+          the RAG information with authoritative CVE database details.', '4.  **Mandatory CVE Lookup (If CVE is mentioned):**',
+        '*   If the original query mentions a specific CVE ID or well-known vulnerability name (e.g., "Log4Shell"), and it
+          wasn''t covered in step 2, you **MUST** use the ''cve_lookup_specialist'' tool.', '*   This ensures you have the
+          most authoritative CVE information.', '5.  **Execute Additional Research (following RAG-first principle):**', '*   For
+          each sub-query or research need identified in the plan:', a.  **ALWAYS use 'rag_query' FIRST** - Query the RAG corpus
+          with targeted queries for each sub-topic., 'b.  **Then supplement with other tools as needed:**', '- Use ''cve_lookup_specialist''
+          for specific CVE details not found in RAG', '- Use ''web_search'' ONLY when:', '* You need very recent information
+          (last few weeks/months)', '* The RAG corpus lacks information on the specific topic', '* You need to verify current
+          exploitation status or recent patches', '* The topic is too new to be in the RAG corpus', '*   **IMPORTANT: The
+          ''rag_query'' tool is your PRIMARY source. Other tools should supplement, not replace it.**', '6.  **Synthesize
+          and Report:**', '*   Combine all gathered information into a single, coherent, and structured response.', '*   **ALWAYS
+          include a "## Research Sources" section at the end of your output, listing ALL sources used:**', '- For RAG corpus
+          sources: Include document names, relevance scores, and excerpts.', '- For CVE database sources (via ''cve_lookup_specialist''):
+          List all CVEs referenced with their IDs and key data points obtained (e.g., "CVE-2021-44228 - CVSS: 10.0, Summary:
+          [brief summary from tool]").', '- For web search results: Include website names, URLs, and publication dates when
+          available.', '*   Focus on technical details, attack vectors, affected systems, and mitigation strategies.', '*   If
+          an explicitly directed tool action from the plan fails, report the failure and attempt to find the information using
+          an alternative tool if appropriate, noting the deviation.', Your goal is to be thorough and accurate. Use the tools
+          strategically to build a complete picture based on the research plan.]
+      output_key: research_findings
+      class: ResearchAgent
+      instance: agent.ResearchAgent.agent
+  agent.ResearchAgent.agent.1:
+    type: class
+    models: [self.model_name]
+    tools: [updated_tools]
+    params:
+      name: security_researcher_with_cve
+      description: Security researcher with CVE lookup capabilities
+      instruction: [You are a highly efficient security research agent. Your primary goal is to gather comprehensive and accurate
+          information about security vulnerabilities and exploits by meticulously executing a research plan provided by the
+          'security_planner' agent., 'You will receive the research plan, which may be in the agent state or as part of the
+          input. Analyze this plan carefully.', 'You have the following tools at your disposal:', '- ''rag_query'': Searches
+          an internal security corpus for in-depth analysis and existing knowledge.', '- ''cve_lookup_specialist'': Retrieves
+          detailed, authoritative information directly from a CVE database for specific CVE IDs.', '- ''web_search'': Finds
+          the latest public information, news, and broader context from the internet.', '(CRITICAL: These tool names MUST
+          exactly match the tools available to you.)', 'Plan Execution and Research Strategy:', '1.  **Analyze the Research
+          Plan:**', '*   The plan from ''security_planner'' is your primary guide. It will outline research steps and may
+          specify tool usage.', '2.  **MANDATORY FIRST STEP - Always Start with RAG Query:**', '*   **YOU MUST ALWAYS START
+          by using the ''rag_query'' tool** with the original user query to search the internal security corpus.', '*   This
+          gives you a baseline understanding from our curated security knowledge base.', '*   Even if the plan suggests other
+          tools, you must first check what''s available in the RAG corpus.', '3.  **Execute Explicit Tool Directives from
+          the Plan:**', '*   After the initial RAG query, if the plan contains specific instructions like "Action: Use tool
+          ''tool_name'' with input ''some_input_string''", execute these as directed.', '*   **If the plan directs you to
+          use ''cve_lookup_specialist'' for a specific CVE ID:**', '*   Execute this tool call as directed.', '*   This supplements
+          the RAG information with authoritative CVE database details.', '4.  **Mandatory CVE Lookup (If CVE is mentioned):**',
+        '*   If the original query mentions a specific CVE ID or well-known vulnerability name (e.g., "Log4Shell"), and it
+          wasn''t covered in step 2, you **MUST** use the ''cve_lookup_specialist'' tool.', '*   This ensures you have the
+          most authoritative CVE information.', '5.  **Execute Additional Research (following RAG-first principle):**', '*   For
+          each sub-query or research need identified in the plan:', a.  **ALWAYS use 'rag_query' FIRST** - Query the RAG corpus
+          with targeted queries for each sub-topic., 'b.  **Then supplement with other tools as needed:**', '- Use ''cve_lookup_specialist''
+          for specific CVE details not found in RAG', '- Use ''web_search'' ONLY when:', '* You need very recent information
+          (last few weeks/months)', '* The RAG corpus lacks information on the specific topic', '* You need to verify current
+          exploitation status or recent patches', '* The topic is too new to be in the RAG corpus', '*   **IMPORTANT: The
+          ''rag_query'' tool is your PRIMARY source. Other tools should supplement, not replace it.**', '6.  **Synthesize
+          and Report:**', '*   Combine all gathered information into a single, coherent, and structured response.', '*   **ALWAYS
+          include a "## Research Sources" section at the end of your output, listing ALL sources used:**', '- For RAG corpus
+          sources: Include document names, relevance scores, and excerpts.', '- For CVE database sources (via ''cve_lookup_specialist''):
+          List all CVEs referenced with their IDs and key data points obtained (e.g., "CVE-2021-44228 - CVSS: 10.0, Summary:
+          [brief summary from tool]").', '- For web search results: Include website names, URLs, and publication dates when
+          available.', '*   Focus on technical details, attack vectors, affected systems, and mitigation strategies.', '*   If
+          an explicitly directed tool action from the plan fails, report the failure and attempt to find the information using
+          an alternative tool if appropriate, noting the deviation.', Your goal is to be thorough and accurate. Use the tools
+          strategically to build a complete picture based on the research plan.]
+      output_key: research_findings
+      class: ResearchAgent
+      instance: agent.ResearchAgent.agent
+  default_orchestrator:
+    type: instance
+    params:
+      name: security_orchestrator
+      description: Executes a sequence of planning, research, and analysis for zero-day vulnerabilities
+      class: OrchestratorAgent
+      sub_agents: [self.planner_agent.agent, self.research_agent.agent, self.analysis_agent.agent]
+
+models:
+  model_name:
+    type: literal
+    agents: [agent.PlannerAgent.agent, agent.AnalysisAgent.agent]
+  self.model_name:
+    type: literal
+    agents: [agent.ResearchAgent.agent.0, agent.ResearchAgent.agent.1, agent.CveLookupAgent.agent.0, agent.CveLookupAgent.agent.1]
+
+tools:
+  adk_tools:
+    type: function
+    agents: [agent.CveLookupAgent.agent.1]
+    params:
+      dynamic: "True"
+  list:
+    type: function
+    agents: [agent.ResearchAgent.agent.0]
+    params:
+      dynamic: "True"
+      source: call
+  updated_tools:
+    type: function
+    agents: [agent.ResearchAgent.agent.1]
+    params:
+      dynamic: "True"
+  vulnerability_tool:
+    type: function
+    agents: [agent.AnalysisAgent.agent]
+    params:
+      module: self.vulnerability_tool
+  web_search_tool:
+    type: function
+    agents: [agent.AnalysisAgent.agent]
+    params:
+      module: self.web_search_tool
+
+teams:
+  default_orchestrator:
+    type: sequential
+    agents: [default_orchestrator, self.planner_agent.agent, self.research_agent.agent, self.analysis_agent.agent]
+
+imports:
+  A4: reportlab.lib.pagesizes.A4
+  Agent: google.adk.agents.Agent
+  agent: agent
+  agent_tool: google.adk.tools.agent_tool
+  aiplatform: google.cloud.aiplatform
+  Align: rich.align.Align
+  ANALYSIS_SYSTEM_PROMPT: src.scout_agent.prompts.ANALYSIS_SYSTEM_PROMPT
+  ANALYSIS_TASK_PROMPT: src.scout_agent.prompts.ANALYSIS_TASK_PROMPT
+  AnalysisAgent: src.scout_agent.agent.AnalysisAgent
+  Any: typing.Any
+  argparse: argparse
+  asyncio: asyncio
+  BarColumn: rich.progress.BarColumn
+  box: rich.box
+  ClientSession: mcp.ClientSession
+  colors: reportlab.lib.colors
+  Console: rich.console.Console
+  CveLookupAgent: src.scout_agent.cve_agent.CveLookupAgent
+  datetime: datetime
+  DEFAULT_CHUNK_OVERLAP: config.constants.DEFAULT_CHUNK_OVERLAP
+  DEFAULT_CHUNK_SIZE: config.constants.DEFAULT_CHUNK_SIZE
+  DEFAULT_CLOUD_TRACKING_PATH: config.constants.DEFAULT_CLOUD_TRACKING_PATH
+  DEFAULT_CORPUS_NAME: config.constants.DEFAULT_CORPUS_NAME
+  DEFAULT_DISTANCE_THRESHOLD: config.constants.DEFAULT_DISTANCE_THRESHOLD
+  DEFAULT_DOCUMENT_PREFIXES: config.constants.DEFAULT_DOCUMENT_PREFIXES
+  DEFAULT_EMBEDDING_MODEL: config.constants.DEFAULT_EMBEDDING_MODEL
+  DEFAULT_GCS_BUCKET: config.constants.DEFAULT_GCS_BUCKET
+  DEFAULT_GENERATIVE_MODEL: config.constants.DEFAULT_GENERATIVE_MODEL
+  DEFAULT_LOCATION: config.constants.DEFAULT_LOCATION
+  DEFAULT_PROJECT_ID: config.constants.DEFAULT_PROJECT_ID
+  DEFAULT_RERANKER_MODEL: config.constants.DEFAULT_RERANKER_MODEL
+  DEFAULT_TEMPERATURE: config.constants.DEFAULT_TEMPERATURE
+  DEFAULT_TOP_K: config.constants.DEFAULT_TOP_K
+  DEFAULT_USE_CLOUD_TRACKING: config.constants.DEFAULT_USE_CLOUD_TRACKING
+  DEFAULT_USE_RERANKING: config.constants.DEFAULT_USE_RERANKING
+  Dict: typing.Dict
+  export_results_to_markdown: src.apps.markdown_utils.export_results_to_markdown
+  export_to_markdown: src.apps.markdown_exporter.export_to_markdown
+  export_to_pdf: src.apps.pdf_exporter.export_to_pdf
+  Flask: flask.Flask
+  FunctionTool: google.adk.tools.FunctionTool
+  GcsManager: src.rag.gcs_utils.GcsManager
+  GenerationConfig: vertexai.generative_models.GenerationConfig
+  GenerativeModel: vertexai.generative_models.GenerativeModel
+  get_config: config.config_manager.get_config
+  getSampleStyleSheet: reportlab.lib.styles.getSampleStyleSheet
+  Image: reportlab.platypus.Image
+  InMemoryRunner: google.adk.runners.InMemoryRunner
+  InMemorySessionService: google.adk.sessions.InMemorySessionService
+  inspect: inspect
+  io: io
+  is_available: src.apps.pdf_exporter.is_available
+  json: json
+  jsonify: flask.jsonify
+  Layout: rich.layout.Layout
+  letter: reportlab.lib.pagesizes.letter
+  List: typing.List
+  ListFlowable: reportlab.platypus.ListFlowable
+  ListItem: reportlab.platypus.ListItem
+  Live: rich.live.Live
+  LlmAgent: google.adk.agents.LlmAgent
+  load_dotenv: dotenv.load_dotenv
+  logging: logging
+  Markdown: rich.markdown.Markdown
+  MCP_SERVER_CLIENT_HOST: config.constants.MCP_SERVER_CLIENT_HOST
+  MCP_SERVER_PORT: config.constants.MCP_SERVER_PORT
+  MCP_SERVER_TRANSPORT: config.constants.MCP_SERVER_TRANSPORT
+  McpCveClient: src.cve_mcp.mcp_cve_client.McpCveClient
+  Optional: typing.Optional
+  ORCHESTRATOR_SYSTEM_PROMPT: src.scout_agent.prompts.ORCHESTRATOR_SYSTEM_PROMPT
+  OrchestratorAgent: src.scout_agent.agent.OrchestratorAgent
+  os: os
+  PageBreak: reportlab.platypus.PageBreak
+  Panel: rich.panel.Panel
+  Paragraph: reportlab.platypus.Paragraph
+  ParagraphStyle: reportlab.lib.styles.ParagraphStyle
+  Part: google.genai.types.Part
+  Path: pathlib.Path
+  PLAN_CREATION_PROMPT: src.scout_agent.prompts.PLAN_CREATION_PROMPT
+  PLANNER_SYSTEM_PROMPT: src.scout_agent.prompts.PLANNER_SYSTEM_PROMPT
+  Progress: rich.progress.Progress
+  Prompt: rich.prompt.Prompt
+  queue: queue
+  rag: vertexai.rag
+  RagQueryTool: src.scout_agent.tools.RagQueryTool
+  re: re
+  redirect_stdout: contextlib.redirect_stdout
+  request: flask.request
+  requests: requests
+  RESEARCH_SYSTEM_PROMPT: src.scout_agent.prompts.RESEARCH_SYSTEM_PROMPT
+  RESEARCH_TASK_PROMPT: src.scout_agent.prompts.RESEARCH_TASK_PROMPT
+  ResearchAgent: src.scout_agent.agent.ResearchAgent
+  RESPONSE_SYNTHESIS_PROMPT: src.scout_agent.prompts.RESPONSE_SYNTHESIS_PROMPT
+  RichHandler: rich.logging.RichHandler
+  Runner: google.adk.runners.Runner
+  SequentialAgent: google.adk.agents.SequentialAgent
+  Set: typing.Set
+  signal: signal
+  SimpleDocTemplate: reportlab.platypus.SimpleDocTemplate
+  Spacer: reportlab.platypus.Spacer
+  Spinner: rich.spinner.Spinner
+  SpinnerColumn: rich.progress.SpinnerColumn
+  st: streamlit
+  Status: rich.status.Status
+  storage: google.cloud.storage
+  streamablehttp_client: mcp.client.streamable_http.streamablehttp_client
+  Syntax: rich.syntax.Syntax
+  sys: sys
+  Table: rich.table.Table
+  TableStyle: reportlab.platypus.TableStyle
+  tempfile: tempfile
+  TextColumn: rich.progress.TextColumn
+  Theme: rich.theme.Theme
+  threading: threading
+  time: time
+  TimeElapsedColumn: rich.progress.TimeElapsedColumn
+  TimeRemainingColumn: rich.progress.TimeRemainingColumn
+  traceback: traceback
+  Tuple: typing.Tuple
+  types: google.genai.types
+  Union: typing.Union
+  urljoin: urllib.parse.urljoin
+  urlparse: urllib.parse.urlparse
+  UserContent: google.genai.types.UserContent
+  uuid: uuid
+  VertexRagPipeline: src.rag.pipeline.VertexRagPipeline
+  VulnerabilityAnalysisTool: src.scout_agent.tools.VulnerabilityAnalysisTool
+  WebSearchTool: src.scout_agent.web_search_tool.WebSearchTool
+
+functions:
+  __aenter__:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self]
+  __aexit__:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self, exc_type, exc_val, exc_tb]
+  __init__:
+    type: sync
+    module: config.config_manager
+    args: [self, env_file]
+  _analyze_vulnerabilities:
+    type: sync
+    module: src.scout_agent.tools
+    args: [self, text, severity_threshold]
+    params:
+      returns: str
+  _call_tool_with_session:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self, tool_name, arguments]
+    params:
+      returns: Dict
+  _clear_tracking_information:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  _create_adk_tools:
+    type: sync
+    module: src.scout_agent.cve_agent
+    args: [self]
+    params:
+      returns: List[FunctionTool]
+  _create_filter:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, distance_threshold, time_filter]
+    params:
+      returns: rag.Filter
+  _execute_query:
+    type: sync
+    module: src.scout_agent.tools
+    args: [self, query, use_reranking, max_results]
+    params:
+      returns: str
+  _extract_time_filter_from_query:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, query]
+    params:
+      returns: Tuple
+  _format_mcp_result:
+    type: sync
+    module: src.scout_agent.cve_agent
+    args: [self, result]
+    params:
+      returns: str
+  _format_search_results:
+    type: sync
+    module: src.scout_agent.web_search_tool
+    args: [self, search_results, query]
+    params:
+      returns: str
+  _get_default_root_agent:
+    type: async
+    module: src.scout_agent.agent
+  _initialize_sub_agents_and_create_sequence:
+    type: async
+    module: src.scout_agent.agent
+    args: [self]
+  _load_config:
+    type: sync
+    module: config.config_manager
+    args: [self]
+    params:
+      returns: Dict
+  _load_document_metadata:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  _load_ingested_documents:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: Set[str]
+  _save_document_metadata:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  _save_ingested_documents:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  _search_web:
+    type: sync
+    module: src.scout_agent.web_search_tool
+    args: [self, query, include_answer, max_results, include_domains, exclude_domains, search_type]
+    params:
+      returns: str
+  add_cve_tool:
+    type: sync
+    module: src.scout_agent.agent
+    args: [self, cve_tool_instance]
+  agent_thread_worker:
+    type: sync
+    module: src.scout_agent.agent
+  animated_progress:
+    type: async
+    module: src.apps.rag_cli
+    args: [status_text, delay]
+    params:
+      returns: None
+  call_agent_async:
+    type: async
+    module: src.scout_agent.run
+    args: [query, runner, user_id, session_id, verbose]
+  call_tool:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self, tool_name, arguments]
+    params:
+      returns: Any
+  check_db_status:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  cleanup:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self]
+  cleanup_resources:
+    type: async
+    module: src.scout_agent.agent
+    args: [self]
+  clear_captured_logs:
+    type: sync
+    module: src.apps.rag_cli
+    params:
+      returns: None
+  clear_tracking_files:
+    type: sync
+    module: src.apps.rag_cli
+  close:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self]
+  complete:
+    type: sync
+    module: src.apps.rag_cli
+    args: [self]
+    params:
+      returns: float
+  connect:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self]
+    params:
+      returns: bool
+  create_context_panel:
+    type: sync
+    module: src.apps.rag_cli
+    args: [metrics]
+    params:
+      returns: Optional[Panel]
+  create_corpus:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: rag.RagCorpus
+  create_execution_plan:
+    type: async
+    module: src.apps.scout_cli
+    args: [query, model_name]
+    params:
+      returns: str
+  create_session:
+    type: sync
+    module: src.scout_agent.run
+    args: [self, user_id, session_id]
+  default_handler:
+    type: sync
+    module: src.cloud.ingestion_service
+  delete_corpus:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  direct_rag_response:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, query, model_name, temperature, top_k, vector_distance_threshold, use_reranking, reranker_model]
+    params:
+      returns: str
+  display_agent_structure:
+    type: sync
+    module: src.apps.scout_cli
+  display_commands:
+    type: sync
+    module: src.apps.scout_cli
+    args: [detailed]
+  display_cve_details:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [cve_data]
+  display_cve_ids_in_columns:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [cve_list, title]
+  display_cve_list:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [cve_list, title]
+  display_list_in_columns:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [items, title, item_style]
+  display_logo:
+    type: sync
+    module: src.apps.scout_cli
+  display_logs_panel:
+    type: sync
+    module: src.apps.rag_cli
+  display_performance_metrics:
+    type: sync
+    module: src.apps.rag_cli
+    args: [metrics]
+    params:
+      returns: Panel
+  display_product_list:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [products, vendor]
+  display_vendor_list:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [vendors]
+  enhance_query:
+    type: async
+    module: src.apps.scout_cli
+    args: [query, model_name]
+    params:
+      returns: str
+  ensure_reports_dir:
+    type: sync
+    module: src.apps.pdf_exporter
+  explain_reranking_benefits:
+    type: sync
+    module: src.apps.rag_cli
+    params:
+      returns: Panel
+  export_results_to_markdown:
+    type: sync
+    module: src.apps.markdown_utils
+    args: [query, final_response, agent_outputs, include_sources, console]
+    params:
+      returns: str
+  export_results_to_pdf:
+    type: sync
+    module: src.apps.pdf_utils
+    args: [query, final_response, agent_outputs, include_sources, console]
+    params:
+      returns: str
+  export_to_markdown:
+    type: sync
+    module: src.apps.markdown_exporter
+    args: [query, final_response, agent_outputs, include_sources, filename]
+    params:
+      returns: str
+  export_to_pdf:
+    type: sync
+    module: src.apps.pdf_exporter
+    args: [query, final_response, agent_outputs, include_sources, filename]
+    params:
+      returns: str
+  extract_document_metadata:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, gcs_path]
+    params:
+      returns: Dict
+  extract_source_citations:
+    type: sync
+    module: src.apps.rag_cli
+    args: [contexts]
+    params:
+      returns: str
+  file_exists:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, gcs_path]
+    params:
+      returns: bool
+  format_context_preview:
+    type: sync
+    module: src.apps.rag_cli
+    args: [contexts]
+    params:
+      returns: str
+  format_execution_time:
+    type: sync
+    module: src.apps.rag_cli
+    args: [time_value]
+    params:
+      returns: str
+  format_output_markdown:
+    type: async
+    module: src.apps.scout_cli
+    args: [text, agent_type]
+  format_severity:
+    type: sync
+    module: src.cve_mcp.cve_cli
+    args: [score]
+    params:
+      returns: str
+  generate_answer:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, query, model_name, temperature, retrievals]
+    params:
+      returns: str
+  generate_report_filename:
+    type: sync
+    module: src.apps.pdf_exporter
+    args: [query]
+    params:
+      returns: str
+  get:
+    type: sync
+    module: config.config_manager
+    args: [self, key, default]
+    params:
+      returns: Any
+  get_agent_tool:
+    type: sync
+    module: src.scout_agent.cve_agent
+    args: [self]
+  get_all:
+    type: sync
+    module: config.config_manager
+    args: [self]
+    params:
+      returns: Dict
+  get_captured_logs:
+    type: sync
+    module: src.apps.rag_cli
+    params:
+      returns: str
+  get_config:
+    type: sync
+    module: config.config_manager
+    params:
+      returns: ConfigManager
+  get_corpus:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: Optional[rag.RagCorpus]
+  get_db_update_status:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self]
+    params:
+      returns: Dict
+  get_latest_cves:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  get_progress_panel:
+    type: sync
+    module: src.apps.rag_cli
+  get_step_panel_content:
+    type: sync
+    module: src.apps.rag_cli
+    args: [active_step]
+    params:
+      returns: str
+  get_vendor_products:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self, vendor]
+    params:
+      returns: Dict
+  get_vendors:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self]
+    params:
+      returns: Dict
+  graceful_exit:
+    type: sync
+    module: src.apps.rag_cli
+    args: [signum, frame]
+  health_check:
+    type: sync
+    module: src.cloud.ingestion_service
+  ingest_documents:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, gcs_paths, force_reingest]
+    params:
+      returns: Dict
+  ingest_endpoint:
+    type: sync
+    module: src.cloud.ingestion_service
+  initialize_services:
+    type: sync
+    module: src.cloud.ingestion_service
+  initialize_session_state:
+    type: sync
+    module: src.apps.streamlit_app
+  interactive_mode:
+    type: async
+    module: src.apps.scout_cli
+    args: [model_name, verbose, show_rag, show_plan, auto_export_md]
+  is_available:
+    type: sync
+    module: src.apps.pdf_exporter
+    params:
+      returns: bool
+  is_empty_response:
+    type: sync
+    module: src.apps.rag_cli
+    args: [response]
+    params:
+      returns: bool
+  list_all_vendors:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  list_corpus_files:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: List[Dict]
+  list_files:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, prefix]
+    params:
+      returns: List[str]
+  list_ingested_documents:
+    type: sync
+    module: src.apps.rag_cli
+    args: [pipeline]
+  list_research_papers:
+    type: sync
+    module: src.apps.rag_cli
+    args: [pipeline, prefix, detailed]
+  list_tools:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self]
+    params:
+      returns: List[Dict]
+  list_vendor_products:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  lookup:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self, query, timeout]
+    params:
+      returns: str
+  main:
+    type: async
+    module: src.apps.scout_cli
+  markdown_to_reportlab:
+    type: sync
+    module: src.apps.pdf_exporter
+    args: [md_text]
+    params:
+      returns: List[Any]
+  next_step:
+    type: sync
+    module: src.apps.rag_cli
+    args: [self]
+    params:
+      returns: int
+  parse_pipeline_output:
+    type: sync
+    module: src.apps.rag_cli
+    args: [output, use_reranking]
+    params:
+      returns: Dict
+  ping:
+    type: async
+    module: src.cve_mcp.mcp_cve_client
+    args: [self]
+    params:
+      returns: Dict
+  pipeline:
+    type: sync
+    module: src.scout_agent.tools
+    args: [self]
+    params:
+      returns: VertexRagPipeline
+  print_ingested_documents:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  process_query:
+    type: async
+    module: src.apps.scout_cli
+    args: [query, model_name, verbose, show_agent_outputs, show_rag, show_plan]
+  rag_query:
+    type: sync
+    module: src.scout_agent.tools
+    args: [query, use_reranking, max_results]
+    params:
+      returns: str
+  read_json:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, gcs_path]
+    params:
+      returns: Any
+  recreate_corpus:
+    type: sync
+    module: src.rag.pipeline
+    args: [self]
+    params:
+      returns: None
+  render:
+    type: sync
+    module: src.apps.rag_cli
+    args: [self]
+    params:
+      returns: Table
+  retrieve_context:
+    type: sync
+    module: src.rag.pipeline
+    args: [self, query, top_k, distance_threshold, use_reranking, reranker_model, time_filter]
+    params:
+      returns: List[Dict]
+  run_async:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [self]
+  run_conversation:
+    type: async
+    module: src.scout_agent.run
+    args: [runner, user_id, session_id, queries, verbose]
+  run_rag_query:
+    type: sync
+    module: src.apps.rag_cli
+    args: [query, use_reranking, debug, verbose, update_in_place]
+    params:
+      returns: Tuple
+  search_by_vendor_product:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  search_cve:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [cve_id]
+    params:
+      returns: str
+  search_cve_by_id:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  search_vendor_product_cves:
+    type: async
+    module: src.scout_agent.cve_agent
+    args: [vendor, product]
+    params:
+      returns: str
+  set_log_level:
+    type: sync
+    module: src.apps.scout_cli
+    args: [debug, verbose]
+  show_logo:
+    type: sync
+    module: src.apps.rag_cli
+  show_splash_screen:
+    type: sync
+    module: src.apps.rag_cli
+  signal_handler:
+    type: sync
+    module: src.apps.scout_cli
+    args: [sig, frame]
+  single_command_mode:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [args]
+  suggest_query_improvements:
+    type: sync
+    module: src.apps.scout_cli
+    args: [query, model_name]
+    params:
+      returns: List[str]
+  sync_tracking_files:
+    type: sync
+    module: src.apps.rag_cli
+    args: [verbose, rebuild]
+  test_connection:
+    type: async
+    module: src.cve_mcp.cve_cli
+    args: [client]
+  update:
+    type: sync
+    module: config.config_manager
+    args: [self, key, value]
+    params:
+      returns: None
+  update_processing_panel:
+    type: sync
+    module: src.apps.rag_cli
+    args: [self]
+  upload_directory:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, local_dir, gcs_prefix]
+    params:
+      returns: List[str]
+  upload_file:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, local_path, gcs_path]
+    params:
+      returns: str
+  vulnerability_analysis:
+    type: sync
+    module: src.scout_agent.tools
+    args: [text, severity_threshold]
+    params:
+      returns: str
+  web_search:
+    type: sync
+    module: src.scout_agent.web_search_tool
+    args: [query, include_answer, max_results, include_domains, exclude_domains, search_type]
+    params:
+      returns: str
+  write_json:
+    type: sync
+    module: src.rag.gcs_utils
+    args: [self, gcs_path, data]
+    params:
+      returns: None
+
+variables:
+  ADK_WEB_RUNNER:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [src.scout_agent.agent]
+  CLOUD_TRACKING_PATH:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  DOCUMENT_PREFIXES:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  GCS_BUCKET:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  GOOGLE_CLOUD_LOCATION:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  GOOGLE_CLOUD_PROJECT:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  PORT:
+    type: env
+    params:
+      caller: [os.environ.get]
+      path: [src.cloud.ingestion_service]
+  RAG_CHUNK_OVERLAP:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_CHUNK_SIZE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_CORPUS_NAME:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_DISTANCE_THRESHOLD:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_EMBEDDING_MODEL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_GENERATIVE_MODEL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_RERANKER_MODEL:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_TEMPERATURE:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_TOP_K:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  RAG_USE_RERANKING:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+  TAVILY_API_KEY:
+    type: env
+    params:
+      caller: [os.environ.get]
+      path: [src.scout_agent.web_search_tool]
+  USE_CLOUD_TRACKING:
+    type: env
+    params:
+      caller: [os.getenv]
+      path: [config.config_manager]
+
+files:
+  "..":
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [os.path.dirname(), "..", ".."]
+  ../..:
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [os.path.dirname(), ../..]
+  .document_metadata.json:
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [base_dir, .document_metadata.json]
+  .ingested_docs.json:
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [base_dir, .ingested_docs.json]
+  doc_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  gcs_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [Path]
+  local_dir:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.walk]
+  local_path:
+    type: variable
+    actions: [read, write]
+    params:
+      caller: [os.path.basename, open]
+  md_path:
+    type: variable
+    actions: [write, read]
+    params:
+      caller: [open, os.path.exists]
+      alias: [f]
+  pdf_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists]
+  pipeline.metadata_file:
+    type: variable
+    actions: [read, delete]
+    params:
+      caller: [os.path.exists, os.remove]
+  pipeline.tracking_file:
+    type: variable
+    actions: [read, delete, write]
+    params:
+      caller: [os.path.exists, os.remove, open]
+  rel_path:
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [gcs_prefix, rel_path]
+  REPORTS_DIR:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.makedirs]
+  temp_dir:
+    type: variable
+    actions: [delete]
+    params:
+      caller: [os.rmdir]
+  temp_path:
+    type: variable
+    actions: [write, delete, read]
+    params:
+      caller: [open, os.remove, json.load]
+      alias: [f]
+  tracking_file:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists]
+  USAGE.md:
+    type: pattern
+    actions: [read]
+    params:
+      caller: [os.path.join]
+      pattern: [os.path.dirname(), USAGE.md]
+  usage_path:
+    type: variable
+    actions: [read]
+    params:
+      caller: [os.path.exists, open]
+
+networks:
+  server_url:
+    type: api
+    actions: [GET]
+    protocols: [http]
+    ports: ["80"]
+    params:
+      pattern: http://{MCP_SERVER_CLIENT_HOST}:{MCP_SERVER_PORT}/mcp/
+      caller: [connect]
+      dynamic: "True"
+      variable: server_url
+  storage.cloud.google.com:
+    type: api
+    actions: [GET]
+    urls: ['/{...}']
+    protocols: [https]
+    ports: ["443"]
+    params:
+      pattern: https://storage.cloud.google.com/{bucket_name}/{object_path}
+      caller: [format_context_preview, extract_source_citations]
